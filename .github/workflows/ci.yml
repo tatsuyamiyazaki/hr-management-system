@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 型チェック・Lint
+  # ─────────────────────────────────────────────
+  lint-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type Check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+  # ─────────────────────────────────────────────
+  # ユニット・統合テスト（カバレッジ検証）
+  # ─────────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests (Coverage 80%+)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hruser
+          POSTGRES_PASSWORD: hrpass
+          POSTGRES_DB: hr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://hruser:hrpass@localhost:5432/hr_test
+      TEST_DATABASE_URL: postgresql://hruser:hrpass@localhost:5432/hr_test
+      REDIS_URL: redis://localhost:6379
+      APP_SECRET: ci-test-secret-key-32chars-minimum
+      DB_COLUMN_ENCRYPTION_KEY: ci-test-encryption-key-32chars!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Setup Test DB
+        run: pnpm tsx scripts/test-db-setup.ts
+
+      - name: Run Tests with Coverage
+        run: pnpm test:coverage
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # E2E テスト（Playwright）
+  # ─────────────────────────────────────────────
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [lint-typecheck, test]
+
+    env:
+      DATABASE_URL: postgresql://hruser:hrpass@localhost:5432/hr_development
+      REDIS_URL: redis://localhost:6379
+      APP_SECRET: ci-test-secret-key-32chars-minimum
+      DB_COLUMN_ENCRYPTION_KEY: ci-test-encryption-key-32chars!
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hruser
+          POSTGRES_PASSWORD: hrpass
+          POSTGRES_DB: hr_development
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build Application
+        run: pnpm build
+
+      - name: Run E2E Tests
+        run: CI=true pnpm test:e2e
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
