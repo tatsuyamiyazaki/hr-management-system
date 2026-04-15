@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  HR_MANAGER
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  RESIGNED
+  PENDING_JOIN
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 認証・ユーザー (auth / lifecycle ドメイン)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// ユーザー（集約ルート）
+/// email は pgcrypto で暗号化、emailHash（HMAC-SHA256）でログイン時の完全一致検索を行う
+model User {
+  id               String         @id @default(cuid())
+  /// pgcrypto で暗号化（Bytes 型で保持）
+  email            Bytes
+  /// HMAC-SHA256 — ログイン時の完全一致検索用
+  emailHash        String         @unique
+  passwordHash     String
+  role             UserRole
+  status           EmployeeStatus @default(ACTIVE)
+  positionId       String?
+  hireDate         DateTime?
+  resignDate       DateTime?
+  lockUntil        DateTime?
+  failedLoginCount Int            @default(0)
+  /// Phase 2: ユーザー設定対応
+  locale           String         @default("ja-JP")
+  /// Phase 2: ユーザー設定対応
+  timezone         String         @default("Asia/Tokyo")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  anonymizedAt     DateTime?
+
+  // Relations
+  profile         Profile?
+  passwordHistory PasswordHistory[]
+  sessions        Session[]
+
+  @@index([emailHash])
+  @@index([status])
+  @@index([positionId])
+  @@map("users")
+}
+
+/// ユーザープロフィール
+/// employeeCode は pgcrypto で暗号化、employeeCodeHash（HMAC-SHA256）で完全一致検索を行う
+model Profile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 検索可能（平文）: 組織内名簿として通常業務で共有される範囲
+  firstName     String
+  lastName      String
+  firstNameKana String?
+  lastNameKana  String?
+
+  // 完全一致検索用ハッシュ（暗号文を保持しつつ一致検索を可能にする）
+  /// pgcrypto で暗号化（Bytes 型で保持）
+  employeeCode     Bytes
+  /// HMAC-SHA256
+  employeeCodeHash String  @unique
+  /// pgcrypto で暗号化（Bytes 型で保持）
+  phoneNumber      Bytes?
+  avatarUrl        String?
+  selfIntro        String?
+
+  // FTS/pg_trgm 検索用（firstName/lastName/Kana から構築）
+  // Note: searchVector は DB マイグレーションで GENERATED カラムとして追加
+
+  @@index([employeeCodeHash])
+  @@map("profiles")
+}
+
+/// パスワード履歴（過去5世代チェック用）
+model PasswordHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("password_histories")
+}
+
+/// セッション
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  ipAddress    String
+  userAgent    String
+  createdAt    DateTime  @default(now())
+  lastActiveAt DateTime
+  expiresAt    DateTime
+  revokedAt    DateTime?
+
+  @@index([userId, expiresAt])
+  @@map("sessions")
+}
