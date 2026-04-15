@@ -1,0 +1,94 @@
+name: Move to Done when PR merged
+
+on:
+  pull_request:
+    types: [closed]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  move-to-done:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const projectId = "PVT_kwHOAV33Zs4BUsab";
+            const fieldId   = "PVTSSF_lAHOAV33Zs4BUsabzhCIIbQ";
+            const doneId    = "98236657";  // Done のオプションID
+
+            const body = context.payload.pull_request.body || "";
+            const matches = body.matchAll(
+              /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi
+            );
+
+            const issueNumbers = [...matches].map(function(m) {
+              return parseInt(m[1]);
+            });
+
+            if (issueNumbers.length === 0) {
+              console.log("PR 本文に Issue 参照が見つかりません");
+              return;
+            }
+
+            for (const issueNumber of issueNumbers) {
+
+              const issueResult = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                issue_number: issueNumber
+              });
+              const issueNodeId = issueResult.data.node_id;
+
+              const query = `
+                query($issueId: ID!) {
+                  node(id: $issueId) {
+                    ... on Issue {
+                      projectItems(first: 10) {
+                        nodes {
+                          id
+                          project { id }
+                        }
+                      }
+                    }
+                  }
+                }
+              `;
+
+              const result = await github.graphql(query, {
+                issueId: issueNodeId
+              });
+
+              const item = result.node.projectItems.nodes
+                .find(function(n) { return n.project.id === projectId; });
+
+              if (!item) {
+                console.log("Issue #" + issueNumber + " は Project に追加されていません");
+                continue;
+              }
+
+              const mutation = `
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }
+              `;
+
+              await github.graphql(mutation, {
+                projectId: projectId,
+                itemId:    item.id,
+                fieldId:   fieldId,
+                optionId:  doneId
+              });
+
+              console.log("Issue #" + issueNumber + " を Done に移動しました");
+            }
