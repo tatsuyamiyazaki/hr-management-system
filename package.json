@@ -20,17 +20,23 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "check:connections": "tsx scripts/check-connections.ts",
     "prepare": "husky"
   },
   "dependencies": {
     "next": "^15.3.0",
+    "pg": "^8.13.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "redis": "^4.7.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@playwright/test": "^1.50.1",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -39,11 +45,12 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.3.0",
     "husky": "^9.1.0",
+    "js-yaml": "^4.1.1",
     "lint-staged": "^15.5.0",
     "prettier": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.0",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
   },
