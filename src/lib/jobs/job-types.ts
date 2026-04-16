@@ -33,6 +33,11 @@ export const jobPayloadSchema = {
   }),
 
   'export-csv': exportRequestSchema,
+  'export-csv': z.object({
+    resourceType: z.string().min(1),
+    requestedBy: z.string().min(1),
+    filters: z.record(z.unknown()).optional(),
+  }),
 
   'import-csv': z.object({
     resourceType: z.string().min(1),

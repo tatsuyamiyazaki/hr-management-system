@@ -30,6 +30,8 @@ export function createBaseWorker(
   worker.on('completed', (job) => {
     // TODO: 本番では構造化ロガーに転送する
     console.error(`[Worker:${queueName}] job completed`, { jobId: job.id, jobName: job.name })
+    // 本番では構造化ロガーに転送する
+    void job
   })
 
   worker.on('failed', (job, err) => {
@@ -40,11 +42,14 @@ export function createBaseWorker(
       attemptsMade: job?.attemptsMade,
       error: err.message,
     })
+    void job
+    void err
   })
 
   worker.on('error', (err) => {
     // Redis 接続断など Worker レベルのエラー
     console.error(`[Worker:${queueName}] worker error`, { error: err.message })
+    void err
   })
 
   return worker

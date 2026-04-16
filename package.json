@@ -24,6 +24,8 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/hono": "^7.0.0",
     "@prisma/client": "^6.0.0",
     "bullmq": "^5.74.1",
     "ioredis": "^5.10.1",
