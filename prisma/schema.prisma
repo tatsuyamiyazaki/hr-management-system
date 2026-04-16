@@ -29,6 +29,52 @@ enum EmployeeStatus {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 監査ログ Enums (Requirement 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 監査ログアクション種別
+enum AuditAction {
+  // 認証イベント (17.1)
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  ACCOUNT_LOCKED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_CHANGED
+  // 権限変更イベント (17.2)
+  ROLE_CHANGE
+  PERMISSION_CHANGE
+  // 組織変更イベント (17.2)
+  ORGANIZATION_CHANGE
+  // マスタ変更イベント (17.2)
+  MASTER_DATA_CHANGE
+  // 汎用レコード操作
+  RECORD_CREATE
+  RECORD_UPDATE
+  RECORD_DELETE
+  // 評価確定イベント (17.2)
+  EVALUATION_FINALIZED
+  // データエクスポートイベント (17.2)
+  DATA_EXPORT
+}
+
+/// 監査ログリソース種別
+enum AuditResourceType {
+  USER
+  SESSION
+  ORGANIZATION
+  POSITION
+  EVALUATION
+  EVALUATION_CYCLE
+  FEEDBACK
+  GOAL
+  ONE_ON_ONE
+  MASTER_DATA
+  EXPORT_JOB
+  SYSTEM_CONFIG
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 認証・ユーザー (auth / lifecycle ドメイン)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -123,4 +169,41 @@ model Session {
 
   @@index([userId, expiresAt])
   @@map("sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 監査ログ (Requirement 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 監査ログ（追記のみ / Append-Only）
+/// - DB ロールレベルで UPDATE/DELETE を禁止（Requirement 17.7）
+/// - 月次パーティショニングで 7 年保持（Requirement 17.5）
+/// - 変更前後の差分（before/after）を JSON で記録（Requirement 17.3）
+model AuditLog {
+  id String @id @default(cuid())
+
+  /// null = 未認証リクエスト（LOGIN_FAILURE 等）
+  userId       String?
+  action       AuditAction
+  resourceType AuditResourceType
+  /// null = リソース特定不要なアクション
+  resourceId   String?
+
+  /// クライアント IP アドレス（Requirement 17.3）
+  ipAddress String
+  /// クライアント User-Agent（Requirement 17.3）
+  userAgent String
+
+  /// 変更前スナップショット（Requirement 17.3 / Requirement 17.5）
+  before Json?
+  /// 変更後スナップショット（Requirement 17.3 / Requirement 17.5）
+  after Json?
+
+  /// イベント発生日時（パーティショニングキー）
+  occurredAt DateTime @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([occurredAt])
+  @@index([action, occurredAt])
+  @@map("audit_logs")
 }
