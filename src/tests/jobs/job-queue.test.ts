@@ -46,10 +46,10 @@ describe('JobQueue', () => {
     })
 
     it('should pass the job name and payload to BullMQ', async () => {
-      await queue.enqueue('export-csv', { resourceType: 'USER', requestedBy: 'user-1' })
+      await queue.enqueue('export-csv', { type: 'OrganizationCsv' })
       expect(mockAdd).toHaveBeenCalledWith(
         'export-csv',
-        expect.objectContaining({ resourceType: 'USER', requestedBy: 'user-1' }),
+        expect.objectContaining({ type: 'OrganizationCsv' }),
         expect.any(Object),
       )
     })
