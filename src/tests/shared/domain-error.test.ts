@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 
 describe('DomainError 型', () => {
   it('ValidationError が正しく生成できる', async () => {
-    const { ok, err } = await import('@/lib/shared/domain-error')
+    const { err } = await import('@/lib/shared/domain-error')
     const error = err({ _tag: 'ValidationError', field: 'email', message: 'メールが不正です' })
     expect(error.isOk()).toBe(false)
     if (error.isErr()) {
