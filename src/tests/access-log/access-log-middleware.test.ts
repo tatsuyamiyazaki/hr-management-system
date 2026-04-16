@@ -103,7 +103,7 @@ describe('createAccessLogMiddleware', () => {
         durationMs: expect.any(Number),
       }),
     )
-    const recorded = mockEmit.mock.calls[0][0]
+    const recorded = mockEmit.mock.calls[0]![0]
     expect(recorded.durationMs).toBeGreaterThanOrEqual(0)
   })
 

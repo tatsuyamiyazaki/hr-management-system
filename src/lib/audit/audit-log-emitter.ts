@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import type { AuditLogEntry } from './audit-log-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,8 +35,8 @@ class PrismaAuditLogEmitter implements AuditLogEmitter {
           resourceId: entry.resourceId,
           ipAddress: entry.ipAddress,
           userAgent: entry.userAgent,
-          before: entry.before,
-          after: entry.after,
+          before: entry.before != null ? (entry.before as Prisma.InputJsonValue) : undefined,
+          after: entry.after != null ? (entry.after as Prisma.InputJsonValue) : undefined,
         },
       })
     } catch {

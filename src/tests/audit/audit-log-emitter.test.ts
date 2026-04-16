@@ -53,8 +53,8 @@ describe('AuditLogEmitter', () => {
           resourceId: 'user-1',
           ipAddress: '127.0.0.1',
           userAgent: 'Mozilla/5.0',
-          before: null,
-          after: null,
+          before: undefined,
+          after: undefined,
         }),
       })
     })
