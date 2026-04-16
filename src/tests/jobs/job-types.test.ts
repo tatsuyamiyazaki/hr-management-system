@@ -49,17 +49,22 @@ describe('jobPayloadSchema', () => {
 
   it('should validate export-csv payload', () => {
     const result = jobPayloadSchema['export-csv'].safeParse({
-      resourceType: 'USER',
-      requestedBy: 'user-1',
+      type: 'OrganizationCsv',
     })
     expect(result.success).toBe(true)
   })
 
-  it('should validate import-csv payload', () => {
+  it('should validate import-csv payload (MasterCsv)', () => {
     const result = jobPayloadSchema['import-csv'].safeParse({
-      resourceType: 'USER',
-      fileUrl: 'https://storage.example.com/upload.csv',
-      requestedBy: 'user-1',
+      type: 'MasterCsv',
+      resource: 'DEPARTMENT',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('should validate import-csv payload (EmployeeCsv)', () => {
+    const result = jobPayloadSchema['import-csv'].safeParse({
+      type: 'EmployeeCsv',
     })
     expect(result.success).toBe(true)
   })

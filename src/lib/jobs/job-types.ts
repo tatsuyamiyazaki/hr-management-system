@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { exportRequestSchema } from '@/lib/export/export-types'
+import { importRequestSchema } from '@/lib/import/import-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job 名一覧
@@ -33,17 +34,8 @@ export const jobPayloadSchema = {
   }),
 
   'export-csv': exportRequestSchema,
-  'export-csv': z.object({
-    resourceType: z.string().min(1),
-    requestedBy: z.string().min(1),
-    filters: z.record(z.unknown()).optional(),
-  }),
 
-  'import-csv': z.object({
-    resourceType: z.string().min(1),
-    fileUrl: z.string().url(),
-    requestedBy: z.string().min(1),
-  }),
+  'import-csv': importRequestSchema,
 
   'anonymize-user': z.object({
     userId: z.string().min(1),
