@@ -3,6 +3,7 @@ import { createJobQueue } from '@/lib/jobs/job-queue'
 import type { BlobStorage } from './blob-storage'
 import { createLocalBlobStorage } from './blob-storage'
 import type { ExportJobId, ExportJobStatus, ExportRequest } from './export-types'
+import { exportJobResultSchema } from './export-types'
 import type { JobState } from '@/lib/jobs/job-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,10 +72,10 @@ class BullMQExportJob implements ExportJob {
     const status = await this.queue.getJobStatus(jobId)
     if (!status || status.state !== 'completed') return null
 
-    const result = status.returnValue as { blobKey?: string } | null
-    if (!result?.blobKey) return null
+    const parsed = exportJobResultSchema.safeParse(status.returnValue)
+    if (!parsed.success) return null
 
-    return this.storage.getSignedUrl(result.blobKey, SIGNED_URL_TTL_SECONDS)
+    return this.storage.getSignedUrl(parsed.data.blobKey, SIGNED_URL_TTL_SECONDS)
   }
 }
 
@@ -83,8 +84,5 @@ class BullMQExportJob implements ExportJob {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function createExportJob(queue?: JobQueue, storage?: BlobStorage): ExportJob {
-  return new BullMQExportJob(
-    queue ?? createJobQueue(),
-    storage ?? createLocalBlobStorage(),
-  )
+  return new BullMQExportJob(queue ?? createJobQueue(), storage ?? createLocalBlobStorage())
 }

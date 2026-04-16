@@ -92,4 +92,27 @@ describe('processExportJob()', () => {
     const [uploadPath] = storageMock.upload.mock.calls[0]!
     expect(uploadPath).toContain('job-abc')
   })
+
+  it('should process EvaluationReport (csv) and upload a .csv file', async () => {
+    const job = makeJob({
+      type: 'EvaluationReport',
+      cycleId: 'cycle-1',
+      format: 'csv',
+      requestedBy: 'user-1',
+    })
+    const result = await processExportJob(job, storageMock)
+    expect(result.blobKey).toBeTruthy()
+    const [uploadPath] = storageMock.upload.mock.calls[0]!
+    expect(uploadPath).toMatch(/\.csv$/)
+  })
+
+  it('should use "unknown" as fallback when job.id is undefined', async () => {
+    const job = { id: undefined, data: { type: 'OrganizationCsv' } } as unknown as Parameters<
+      typeof processExportJob
+    >[0]
+    const result = await processExportJob(job, storageMock)
+    expect(result.blobKey).toBeTruthy()
+    const [uploadPath] = storageMock.upload.mock.calls[0]!
+    expect(uploadPath).toContain('unknown')
+  })
 })

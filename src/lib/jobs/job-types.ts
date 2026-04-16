@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { exportRequestSchema } from '@/lib/export/export-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job 名一覧
@@ -31,16 +32,7 @@ export const jobPayloadSchema = {
     variables: z.record(z.string()).optional(),
   }),
 
-  'export-csv': z.discriminatedUnion('type', [
-    z.object({ type: z.literal('MasterCsv'), resource: z.string().min(1) }),
-    z.object({ type: z.literal('OrganizationCsv') }),
-    z.object({
-      type: z.literal('EvaluationReport'),
-      cycleId: z.string().min(1),
-      format: z.enum(['pdf', 'csv']),
-    }),
-    z.object({ type: z.literal('AuditLog'), filter: z.record(z.unknown()) }),
-  ]),
+  'export-csv': exportRequestSchema,
 
   'import-csv': z.object({
     resourceType: z.string().min(1),

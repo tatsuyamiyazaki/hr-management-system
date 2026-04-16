@@ -148,6 +148,54 @@ describe('ExportJob', () => {
       const status = await exportJob.getStatus('job-1')
       expect(status).toBe('failed')
     })
+
+    it('should return "queued" when job state is waiting-children', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'waiting-children',
+        returnValue: null,
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      expect(await exportJob.getStatus('job-1')).toBe('queued')
+    })
+
+    it('should return "queued" when job state is delayed', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'delayed',
+        returnValue: null,
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      expect(await exportJob.getStatus('job-1')).toBe('queued')
+    })
+
+    it('should return "queued" when job state is prioritized', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'prioritized',
+        returnValue: null,
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      expect(await exportJob.getStatus('job-1')).toBe('queued')
+    })
+
+    it('should return "failed" when job state is unknown', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'unknown',
+        returnValue: null,
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      expect(await exportJob.getStatus('job-1')).toBe('failed')
+    })
   })
 
   describe('getDownloadUrl()', () => {
@@ -184,6 +232,32 @@ describe('ExportJob', () => {
       queueMock.getJobStatus.mockResolvedValue(null)
       const exportJob = createExportJob(queueMock, storageMock)
       const result = await exportJob.getDownloadUrl('nonexistent')
+      expect(result).toBeNull()
+    })
+
+    it('should return null when returnValue is null', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'completed',
+        returnValue: null,
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      const result = await exportJob.getDownloadUrl('job-1')
+      expect(result).toBeNull()
+    })
+
+    it('should return null when returnValue has no blobKey', async () => {
+      queueMock.getJobStatus.mockResolvedValue({
+        jobId: 'job-1',
+        name: 'export-csv',
+        state: 'completed',
+        returnValue: { someOtherField: 'value' },
+        failedReason: null,
+      })
+      const exportJob = createExportJob(queueMock, storageMock)
+      const result = await exportJob.getDownloadUrl('job-1')
       expect(result).toBeNull()
     })
   })

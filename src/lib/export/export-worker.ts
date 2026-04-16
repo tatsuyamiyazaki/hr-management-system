@@ -2,7 +2,7 @@ import type { Job } from 'bullmq'
 import type { BlobStorage } from './blob-storage'
 import { createLocalBlobStorage } from './blob-storage'
 import { isExportRequest } from './export-types'
-import type { ExportJobResult } from './export-types'
+import type { ExportJobResult, ExportRequest } from './export-types'
 import { createBaseWorker } from '@/lib/jobs/base-worker'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,10 +13,7 @@ import { createBaseWorker } from '@/lib/jobs/base-worker'
  * export-csv ジョブを処理し、Blob キーを返す。
  * ストレージは依存性注入で受け取ることでテスタブルにする。
  */
-export async function processExportJob(
-  job: Job,
-  storage: BlobStorage,
-): Promise<ExportJobResult> {
+export async function processExportJob(job: Job, storage: BlobStorage): Promise<ExportJobResult> {
   const payload = job.data as unknown
 
   if (!isExportRequest(payload)) {
@@ -36,7 +33,7 @@ export async function processExportJob(
 // 実際のデータ取得は各ドメインサービスが担当する予定
 // ─────────────────────────────────────────────────────────────────────────────
 
-function generateContent(payload: ReturnType<typeof import('./export-types').exportRequestSchema.parse>): string {
+function generateContent(payload: ExportRequest): string {
   switch (payload.type) {
     case 'MasterCsv':
       return `resource,id,name\n${payload.resource},,,`
@@ -54,7 +51,7 @@ function generateContent(payload: ReturnType<typeof import('./export-types').exp
   }
 }
 
-function getExtension(payload: ReturnType<typeof import('./export-types').exportRequestSchema.parse>): string {
+function getExtension(payload: ExportRequest): string {
   if (payload.type === 'EvaluationReport' && payload.format === 'pdf') {
     return 'pdf'
   }

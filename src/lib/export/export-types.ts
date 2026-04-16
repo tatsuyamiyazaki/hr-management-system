@@ -63,3 +63,7 @@ export interface ExportJobResult {
   /** Blob ストレージ上のキー（署名付き URL 取得に使用） */
   blobKey: string
 }
+
+export const exportJobResultSchema = z.object({
+  blobKey: z.string().min(1),
+})
