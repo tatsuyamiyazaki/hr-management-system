@@ -1,3 +1,4 @@
+import { PrismaClient, Prisma } from '@prisma/client'
 import { Prisma, PrismaClient } from '@prisma/client'
 import type { AuditLogEntry } from './audit-log-types'
 

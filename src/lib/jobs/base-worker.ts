@@ -28,18 +28,27 @@ export function createBaseWorker(
   })
 
   worker.on('completed', (job) => {
+    // TODO: 本番では構造化ロガーに転送する
+    console.error(`[Worker:${queueName}] job completed`, { jobId: job.id, jobName: job.name })
     // 本番では構造化ロガーに転送する
     void job
   })
 
   worker.on('failed', (job, err) => {
     // DLQ 監視: 最大リトライ後も失敗した場合のフック
+    console.error(`[Worker:${queueName}] job failed`, {
+      jobId: job?.id,
+      jobName: job?.name,
+      attemptsMade: job?.attemptsMade,
+      error: err.message,
+    })
     void job
     void err
   })
 
   worker.on('error', (err) => {
     // Redis 接続断など Worker レベルのエラー
+    console.error(`[Worker:${queueName}] worker error`, { error: err.message })
     void err
   })
 
