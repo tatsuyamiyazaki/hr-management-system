@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq'
 import { createRedisConnection } from './redis-connection'
-import type { JobName, JobPayloadMap, JobStatus, JobState } from './job-types'
-import { isJobName } from './job-types'
+import type { JobName, JobPayloadMap, JobStatus } from './job-types'
+import { jobPayloadSchema } from './job-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 定数
@@ -42,6 +42,8 @@ class BullMQJobQueue implements JobQueue {
   }
 
   async enqueue<N extends JobName>(name: N, payload: JobPayloadMap[N]): Promise<string> {
+    // 境界バリデーション: 不正ペイロードがキューに投入されないよう実行時に検証する
+    jobPayloadSchema[name].parse(payload)
     const job = await this.queue.add(name, payload, DEFAULT_JOB_OPTIONS)
     if (!job.id) throw new Error(`BullMQ did not return a job id for "${name}"`)
     return job.id
@@ -51,10 +53,10 @@ class BullMQJobQueue implements JobQueue {
     const job = await this.queue.getJob(jobId)
     if (!job) return null
 
-    const state = (await job.getState()) as JobState
+    const state = await job.getState()
     return {
       jobId: job.id ?? jobId,
-      name: isJobName(job.name) ? job.name : 'send-email',
+      name: job.name,
       state,
       returnValue: job.returnvalue,
       failedReason: job.failedReason ?? null,

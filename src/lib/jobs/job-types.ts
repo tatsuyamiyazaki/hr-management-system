@@ -63,11 +63,20 @@ export type JobPayloadMap = {
 // Job ステータス
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type JobState = 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown'
+export type JobState =
+  | 'waiting'
+  | 'active'
+  | 'completed'
+  | 'failed'
+  | 'delayed'
+  | 'unknown'
+  | 'waiting-children'
+  | 'prioritized'
 
 export interface JobStatus {
   jobId: string
-  name: JobName
+  /** ジョブ名。未知の名前も含む可能性があるため string。呼び出し側で isJobName() により絞り込むこと */
+  name: string
   state: JobState
   returnValue: unknown
   failedReason: string | null
