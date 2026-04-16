@@ -73,7 +73,11 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   next_month     DATE := DATE_TRUNC('month', NOW() + INTERVAL '1 month');
-  drop_threshold DATE := DATE_TRUNC('month', NOW() - INTERVAL '12 months');
+  -- 13ヶ月前の月頭 = そのパーティションの最終行が NOW()-13month 以前に確実に収まる
+  -- 例: 2026-04-01 実行 → drop_threshold = 2025-03-01
+  --     2025_03 パーティション (2025-03-01〜2025-03-31) のデータは全て13ヶ月以上前
+  --     → 1年間（12ヶ月）保持を確実に満たしてからドロップ
+  drop_threshold DATE := DATE_TRUNC('month', NOW() - INTERVAL '13 months');
   next_label     TEXT := TO_CHAR(next_month, 'YYYY_MM');
   drop_label     TEXT := TO_CHAR(drop_threshold, 'YYYY_MM');
   partition_name TEXT;
@@ -94,7 +98,8 @@ BEGIN
     );
   END IF;
 
-  -- 12ヶ月超の古いパーティションをドロップ（Requirement 17.6: 1年間保持）
+  -- 13ヶ月前の月パーティションをドロップ（Requirement 17.6: 1年間保持を確実に満たす）
+  -- 12ヶ月前だと月末データがまだ12ヶ月以内に入るため、13ヶ月前を使用する
   partition_name := 'access_logs_' || drop_label;
   IF EXISTS (
     SELECT FROM pg_class c
