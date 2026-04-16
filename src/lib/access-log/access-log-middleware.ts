@@ -9,7 +9,7 @@ export interface AccessLogMiddleware {
 }
 
 function extractIp(req: NextRequest): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.ip ?? 'unknown'
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 }
 
 function extractRequestId(req: NextRequest): string {

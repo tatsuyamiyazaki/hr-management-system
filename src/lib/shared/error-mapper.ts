@@ -58,7 +58,7 @@ export function domainErrorToHttpStatus(error: DomainError): number {
 
     default: {
       // 網羅性チェック: すべての DomainError タグを処理済みであることを確認
-      const _exhaustive: never = error
+      void (error satisfies never)
       return 500
     }
   }
@@ -105,7 +105,7 @@ export function domainErrorToApiCode(error: DomainError): ApiErrorCode {
       return 'INTERNAL_ERROR'
 
     default: {
-      const _exhaustive: never = error
+      void (error satisfies never)
       return 'INTERNAL_ERROR'
     }
   }
@@ -151,7 +151,7 @@ export function domainErrorToMessage(error: DomainError): string {
     case 'RateLimited':
       return `レート制限に達しました。${error.retryAfterSec}秒後に再試行してください`
     default: {
-      const _exhaustive: never = error
+      void (error satisfies never)
       return '予期せぬエラーが発生しました'
     }
   }

@@ -17,7 +17,11 @@ const ENCRYPTED_MODELS: Record<string, string[]> = {
 /**
  * 暗号化対象フィールドを Buffer（pgcrypto バイト列）に変換する
  */
-function encryptFields(modelName: string, data: Record<string, unknown>, encryptionKey: string): Record<string, unknown> {
+function encryptFields(
+  modelName: string,
+  data: Record<string, unknown>,
+  _encryptionKey: string,
+): Record<string, unknown> {
   const fields = ENCRYPTED_MODELS[modelName.toLowerCase()] ?? []
   const result = { ...data }
   for (const field of fields) {
@@ -62,13 +66,21 @@ export function createEncryptedExtension(encryptionKey: string) {
     query: {
       user: {
         async create({ args, query }) {
-          args.data = encryptFields('user', args.data as Record<string, unknown>, encryptionKey) as typeof args.data
+          args.data = encryptFields(
+            'user',
+            args.data as Record<string, unknown>,
+            encryptionKey,
+          ) as typeof args.data
           const result = await query(args)
           return decryptFields('user', result as Record<string, unknown>) as typeof result
         },
         async update({ args, query }) {
           if (args.data) {
-            args.data = encryptFields('user', args.data as Record<string, unknown>, encryptionKey) as typeof args.data
+            args.data = encryptFields(
+              'user',
+              args.data as Record<string, unknown>,
+              encryptionKey,
+            ) as typeof args.data
           }
           const result = await query(args)
           return decryptFields('user', result as Record<string, unknown>) as typeof result
@@ -85,18 +97,28 @@ export function createEncryptedExtension(encryptionKey: string) {
         },
         async findMany({ args, query }) {
           const results = await query(args)
-          return (results as Record<string, unknown>[]).map((r) => decryptFields('user', r)) as typeof results
+          return (results as Record<string, unknown>[]).map((r) =>
+            decryptFields('user', r),
+          ) as typeof results
         },
       },
       profile: {
         async create({ args, query }) {
-          args.data = encryptFields('profile', args.data as Record<string, unknown>, encryptionKey) as typeof args.data
+          args.data = encryptFields(
+            'profile',
+            args.data as Record<string, unknown>,
+            encryptionKey,
+          ) as typeof args.data
           const result = await query(args)
           return decryptFields('profile', result as Record<string, unknown>) as typeof result
         },
         async update({ args, query }) {
           if (args.data) {
-            args.data = encryptFields('profile', args.data as Record<string, unknown>, encryptionKey) as typeof args.data
+            args.data = encryptFields(
+              'profile',
+              args.data as Record<string, unknown>,
+              encryptionKey,
+            ) as typeof args.data
           }
           const result = await query(args)
           return decryptFields('profile', result as Record<string, unknown>) as typeof result
@@ -113,7 +135,9 @@ export function createEncryptedExtension(encryptionKey: string) {
         },
         async findMany({ args, query }) {
           const results = await query(args)
-          return (results as Record<string, unknown>[]).map((r) => decryptFields('profile', r)) as typeof results
+          return (results as Record<string, unknown>[]).map((r) =>
+            decryptFields('profile', r),
+          ) as typeof results
         },
       },
     },
