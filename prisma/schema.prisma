@@ -207,3 +207,31 @@ model AuditLog {
   @@index([action, occurredAt])
   @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// アクセスログ (Requirement 17.6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// API アクセスログ（1年間保持 / 月次パーティショニング）
+/// - 全 /api/** リクエストをミドルウェアで非同期記録
+/// - 月次パーティションを12ヶ月経過後に日次 cron でドロップ
+model AccessLog {
+  id         String   @id @default(cuid())
+  method     String
+  path       String
+  statusCode Int
+  durationMs Int
+  ipAddress  String
+  userAgent  String
+  /// null = 未認証リクエスト
+  userId     String?
+  requestId  String
+
+  /// リクエスト受信日時（パーティショニングキー）
+  requestedAt DateTime @default(now())
+
+  @@index([requestedAt])
+  @@index([userId, requestedAt])
+  @@index([path, requestedAt])
+  @@map("access_logs")
+}
