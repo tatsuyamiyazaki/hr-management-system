@@ -143,3 +143,4 @@ query.graphql
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
