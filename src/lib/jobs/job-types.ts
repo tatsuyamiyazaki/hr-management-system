@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { exportRequestSchema } from '@/lib/export/export-types'
 import { importRequestSchema } from '@/lib/import/import-types'
+import { NOTIFICATION_CATEGORIES } from '@/lib/notification/notification-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job 名一覧
@@ -31,6 +32,10 @@ export const jobPayloadSchema = {
     body: z.string().min(1),
     templateId: z.string().optional(),
     variables: z.record(z.string()).optional(),
+    // 任意メタデータ: 通知ログ記録時に userId / カテゴリを解決するために使用。
+    // NotificationService が emit 時に付与することを想定（後方互換のため optional）。
+    userId: z.string().min(1).optional(),
+    category: z.enum(NOTIFICATION_CATEGORIES).optional(),
   }),
 
   'export-csv': exportRequestSchema,
