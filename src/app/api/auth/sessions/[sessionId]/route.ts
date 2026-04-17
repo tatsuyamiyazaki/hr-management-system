@@ -45,8 +45,17 @@ export async function DELETE(
 
   const { sessionId } = parsed.data
 
+  // Issue #107: AuthService 未初期化は 503 Service Unavailable として扱い、
+  // instrumentation.ts の設定不備が原因であることを伝える (500 よりも安全な手掛かり)。
+  let authService: ReturnType<typeof getAuthService>
   try {
-    await getAuthService().revokeSession(userId, sessionId)
+    authService = getAuthService()
+  } catch {
+    return NextResponse.json({ error: 'Auth service not initialized' }, { status: 503 })
+  }
+
+  try {
+    await authService.revokeSession(userId, sessionId)
     return new NextResponse(null, { status: 204 })
   } catch (error: unknown) {
     if (error instanceof SessionNotFoundError) {
