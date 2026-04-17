@@ -243,7 +243,7 @@ class AuthServiceImpl implements AuthService {
   }
 
   async listSessions(userId: string): Promise<readonly Session[]> {
-    return this.sessions.listByUser(userId)
+    return this.sessions.listByUser(userId, this.clock())
   }
 
   async revokeSession(requesterId: string, sessionId: string): Promise<void> {

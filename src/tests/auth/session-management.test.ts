@@ -6,7 +6,11 @@
  */
 import { describe, it, expect } from 'vitest'
 import { SessionNotFoundError, type Session } from '@/lib/auth/auth-types'
-import { SESSION_ABSOLUTE_TTL_MS, createInMemorySessionStore } from '@/lib/auth/session-store'
+import {
+  SESSION_ABSOLUTE_TTL_MS,
+  SESSION_IDLE_TTL_MS,
+  createInMemorySessionStore,
+} from '@/lib/auth/session-store'
 import { createAuthService } from '@/lib/auth/auth-service'
 import { createInMemoryAuthUserRepository } from '@/lib/auth/user-repository'
 import type { PasswordHasher } from '@/lib/auth/password-hasher'
@@ -46,7 +50,7 @@ describe('InMemorySessionStore.listByUser', () => {
       ),
     )
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     const ids = sessions.map((s) => s.id)
     expect(ids).toContain('sess-1')
     expect(ids).toContain('sess-2')
@@ -60,14 +64,14 @@ describe('InMemorySessionStore.listByUser', () => {
     await store.create(makeSession({ id: 'sess-1', userId: 'user-1' }, now))
     await store.create(makeSession({ id: 'sess-2', userId: 'user-2' }, now))
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     expect(sessions.length).toBe(1)
     expect(sessions[0]!.id).toBe('sess-1')
   })
 
   it('セッションが存在しない場合は空配列を返す', async () => {
     const store = createInMemorySessionStore({ clock: () => BASE_NOW })
-    expect(await store.listByUser('user-1')).toEqual([])
+    expect(await store.listByUser('user-1', BASE_NOW)).toEqual([])
   })
 
   it('createdAt の降順でセッションを返す', async () => {
@@ -82,7 +86,7 @@ describe('InMemorySessionStore.listByUser', () => {
       ),
     )
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     expect(sessions[0]!.id).toBe('sess-new')
     expect(sessions[1]!.id).toBe('sess-old')
   })
@@ -99,9 +103,84 @@ describe('InMemorySessionStore.listByUser', () => {
       ),
     )
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     expect(sessions.length).toBe(1)
     expect(sessions[0]!.id).toBe('sess-active')
+  })
+
+  it('idle timeout 超過 (lastAccessAt が SESSION_IDLE_TTL_MS より古い) セッションは含まれない', async () => {
+    const now = BASE_NOW
+    const store = createInMemorySessionStore({ clock: () => now })
+
+    // lastAccessAt が now - (SESSION_IDLE_TTL_MS + 1ms) → idle 超過
+    const staleLastAccess = new Date(now.getTime() - SESSION_IDLE_TTL_MS - 1)
+    await store.create(makeSession({ id: 'sess-active', userId: 'user-1' }, now))
+    await store.create(
+      makeSession(
+        {
+          id: 'sess-idle',
+          userId: 'user-1',
+          lastAccessAt: staleLastAccess,
+        },
+        now,
+      ),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    expect(sessions.length).toBe(1)
+    expect(sessions[0]!.id).toBe('sess-active')
+  })
+
+  it('lastAccessAt がちょうど SESSION_IDLE_TTL_MS 以内なら含まれる (境界値)', async () => {
+    const now = BASE_NOW
+    const store = createInMemorySessionStore({ clock: () => now })
+
+    // lastAccessAt が now - SESSION_IDLE_TTL_MS → ちょうど境界、含まれる
+    const edgeLastAccess = new Date(now.getTime() - SESSION_IDLE_TTL_MS)
+    await store.create(
+      makeSession(
+        {
+          id: 'sess-edge',
+          userId: 'user-1',
+          lastAccessAt: edgeLastAccess,
+        },
+        now,
+      ),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    expect(sessions.length).toBe(1)
+    expect(sessions[0]!.id).toBe('sess-edge')
+  })
+
+  it('絶対期限/idle timeout の両方を満たすセッションのみ返す', async () => {
+    const now = BASE_NOW
+    const store = createInMemorySessionStore({ clock: () => now })
+
+    // 1. 両方OK
+    await store.create(makeSession({ id: 'sess-ok', userId: 'user-1' }, now))
+    // 2. 絶対期限切れ
+    await store.create(
+      makeSession(
+        { id: 'sess-expired', userId: 'user-1', expiresAt: new Date(now.getTime() - 1) },
+        now,
+      ),
+    )
+    // 3. idle timeout 超過
+    await store.create(
+      makeSession(
+        {
+          id: 'sess-idle',
+          userId: 'user-1',
+          lastAccessAt: new Date(now.getTime() - SESSION_IDLE_TTL_MS - 1000),
+        },
+        now,
+      ),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    expect(sessions.length).toBe(1)
+    expect(sessions[0]!.id).toBe('sess-ok')
   })
 })
 
@@ -157,6 +236,7 @@ describe('AuthService.listSessions', () => {
       sessions,
       passwordHasher: stubHasher,
       appSecret: 'test-secret',
+      clock: () => now,
     })
     return { sessions, service }
   }
@@ -203,6 +283,7 @@ describe('AuthService.revokeSession', () => {
       sessions,
       passwordHasher: stubHasher,
       appSecret: 'test-secret',
+      clock: () => now,
     })
     return { sessions, service }
   }

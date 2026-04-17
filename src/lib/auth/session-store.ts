@@ -42,8 +42,12 @@ export interface SessionStore {
   /** lastAccessAt を now で更新し、更新後の Session を返す */
   touch(sessionId: string, now: Date): Promise<Session>
   delete(sessionId: string): Promise<void>
-  /** ユーザーID に紐づくアクティブセッションを createdAt 降順で返す (Req 1.14) */
-  listByUser(userId: string): Promise<readonly Session[]>
+  /**
+   * ユーザーID に紐づくアクティブセッションを createdAt 降順で返す (Req 1.14)。
+   * `now` 時点で絶対期限切れ / idle timeout 超過のセッションは除外する
+   * (SessionStore.get の assertSessionLive と同じ生存判定)。
+   */
+  listByUser(userId: string, now: Date): Promise<readonly Session[]>
   /**
    * 指定ユーザー所有のセッションを失効させる (Req 1.15)。
    * userId が不一致または存在しない場合は SessionNotFoundError。
@@ -160,6 +164,17 @@ function assertSessionLive(session: Session, now: Date, idleTtlMs: number): void
   }
 }
 
+/**
+ * 期限 / アイドル判定 (例外を投げないバージョン)。
+ * listByUser で複数セッションを並行判定する用途で使用する。
+ * `assertSessionLive` と同じルールで、生存なら true を返す。
+ */
+function isSessionLive(session: Session, now: Date, idleTtlMs: number): boolean {
+  if (now.getTime() > session.expiresAt.getTime()) return false
+  if (now.getTime() - session.lastAccessAt.getTime() > idleTtlMs) return false
+  return true
+}
+
 /** Redis EXPIRE に渡す残り秒 (最小 1 秒) */
 function remainingTtlSeconds(expiresAt: Date, now: Date): number {
   const remainingMs = expiresAt.getTime() - now.getTime()
@@ -243,7 +258,7 @@ class RedisSessionStore implements SessionStore {
     await this.redis.del(sessionKey(sessionId))
   }
 
-  async listByUser(userId: string): Promise<readonly Session[]> {
+  async listByUser(userId: string, now: Date): Promise<readonly Session[]> {
     const sessionIds = await this.redis.smembers(userSessionsKey(userId))
     const sessions: Session[] = []
     for (const id of sessionIds) {
@@ -253,11 +268,22 @@ class RedisSessionStore implements SessionStore {
         await this.redis.srem(userSessionsKey(userId), id)
         continue
       }
+      let parsed: Session
       try {
-        sessions.push(deserializeSession(JSON.parse(raw)))
+        parsed = deserializeSession(JSON.parse(raw))
       } catch {
         // 破損ペイロードはスキップ
+        continue
       }
+      // SessionStore.get の assertSessionLive と同じ生存判定
+      // (絶対期限切れ or idle timeout 超過のセッションは一覧から除外)
+      if (!isSessionLive(parsed, now, this.idleTtlMs)) {
+        // 掃除: セッション本体とセカンダリインデックスの両方を除去
+        await this.redis.srem(userSessionsKey(userId), id)
+        await this.redis.del(sessionKey(id))
+        continue
+      }
+      sessions.push(parsed)
     }
     return sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
@@ -303,19 +329,20 @@ export function createRedisSessionStore(deps: RedisSessionStoreDeps): SessionSto
 export interface InMemorySessionStoreOptions {
   readonly absoluteTtlMs?: number
   readonly idleTtlMs?: number
-  /** テスト用クロック注入。デフォルトは new Date() */
+  /**
+   * テスト用クロック注入 (後方互換のため受け入れるが、現行実装では参照しない)。
+   * 生存判定用の `now` は `get` / `touch` / `listByUser` の引数で受け取る。
+   */
   readonly clock?: () => Date
 }
 
 class InMemorySessionStore implements SessionStore {
   private readonly store: Map<string, Session>
   private readonly idleTtlMs: number
-  private readonly clock: () => Date
 
   constructor(opts?: InMemorySessionStoreOptions) {
     this.store = new Map()
     this.idleTtlMs = opts?.idleTtlMs ?? SESSION_IDLE_TTL_MS
-    this.clock = opts?.clock ?? (() => new Date())
   }
 
   async create(session: Session): Promise<void> {
@@ -347,13 +374,13 @@ class InMemorySessionStore implements SessionStore {
     this.store.delete(sessionId)
   }
 
-  async listByUser(userId: string): Promise<readonly Session[]> {
-    const now = this.clock()
+  async listByUser(userId: string, now: Date): Promise<readonly Session[]> {
     const result: Session[] = []
     for (const session of this.store.values()) {
       if (session.userId !== userId) continue
-      // 絶対期限切れのセッションは一覧から除外
-      if (now.getTime() > session.expiresAt.getTime()) continue
+      // SessionStore.get の assertSessionLive と同じ生存判定
+      // (絶対期限切れ or idle timeout 超過のセッションは一覧から除外)
+      if (!isSessionLive(session, now, this.idleTtlMs)) continue
       result.push(cloneSession(session))
     }
     return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
