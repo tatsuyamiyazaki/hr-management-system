@@ -37,6 +37,10 @@ describe('AuditAction', () => {
   it('should include custom broadcast notification events (Req 15.8)', () => {
     expect(AUDIT_ACTIONS).toContain('CUSTOM_BROADCAST_SENT')
   })
+
+  it('should include access denied events (Req 1.8, 1.9 / Task 6.3)', () => {
+    expect(AUDIT_ACTIONS).toContain('ACCESS_DENIED')
+  })
 })
 
 describe('AuditResourceType', () => {
