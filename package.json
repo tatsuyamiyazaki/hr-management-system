@@ -24,6 +24,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@bull-board/api": "^7.0.0",
     "@bull-board/hono": "^7.0.0",
     "@prisma/client": "^6.0.0",
@@ -33,6 +34,7 @@
     "ioredis": "^5.10.1",
     "neverthrow": "^8.0.0",
     "next": "^15.3.0",
+    "openai": "^6.34.0",
     "pg": "^8.13.0",
     "prisma": "^6.0.0",
     "react": "^19.0.0",
