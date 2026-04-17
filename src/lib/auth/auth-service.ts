@@ -16,6 +16,7 @@ import { computeEmailHash } from '@/lib/shared/crypto'
 import {
   AccountLockedError,
   InvalidCredentialsError,
+  SessionNotFoundError,
   loginInputSchema,
   type LoginInput,
   type Session,
@@ -41,6 +42,13 @@ export interface AuthService {
   getSession(sessionId: string, now?: Date): Promise<Session>
   /** 有効性確認したうえで lastAccessAt を更新する */
   touchSession(sessionId: string, now?: Date): Promise<Session>
+  /** ユーザーの全セッションを createdAt 降順で返す (Req 1.14) */
+  listSessions(userId: string): Promise<readonly Session[]>
+  /**
+   * 指定セッションを失効させる (Req 1.15)。
+   * requesterId と一致しない or 存在しない場合は SessionNotFoundError。
+   */
+  revokeSession(requesterId: string, sessionId: string): Promise<void>
 }
 
 /**
@@ -233,6 +241,19 @@ class AuthServiceImpl implements AuthService {
 
   async touchSession(sessionId: string, now?: Date): Promise<Session> {
     return this.sessions.touch(sessionId, now ?? this.clock())
+  }
+
+  async listSessions(userId: string): Promise<readonly Session[]> {
+    return this.sessions.listByUser(userId)
+  }
+
+  async revokeSession(requesterId: string, sessionId: string): Promise<void> {
+    const sessions = await this.sessions.listByUser(requesterId)
+    const owned = sessions.find((s) => s.id === sessionId)
+    if (!owned) {
+      throw new SessionNotFoundError(sessionId)
+    }
+    await this.sessions.delete(sessionId)
   }
 }
 

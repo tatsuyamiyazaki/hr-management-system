@@ -28,6 +28,13 @@ export const SESSION_IDLE_TTL_MS = 30 * 60 * 1000
 /** Redis キー接頭辞 */
 const SESSION_KEY_PREFIX = 'session:'
 
+/** Redis: ユーザーごとのセッション ID セット キー接頭辞 */
+const USER_SESSIONS_KEY_PREFIX = 'user_sessions:'
+
+function userSessionsKey(userId: string): string {
+  return `${USER_SESSIONS_KEY_PREFIX}${userId}`
+}
+
 export interface SessionStore {
   create(session: Session): Promise<void>
   /** 期限切れ/アイドル超過の場合は専用例外を throw する */
@@ -35,6 +42,8 @@ export interface SessionStore {
   /** lastAccessAt を now で更新し、更新後の Session を返す */
   touch(sessionId: string, now: Date): Promise<Session>
   delete(sessionId: string): Promise<void>
+  /** ユーザーID に紐づく全セッションを createdAt 降順で返す (Req 1.14) */
+  listByUser(userId: string): Promise<readonly Session[]>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,11 +184,34 @@ class RedisSessionStore implements SessionStore {
     this.clock = deps.clock ?? (() => new Date())
   }
 
+  /** sadd が利用可能な場合のみ呼び出す (後方互換のためフェールセーフ) */
+  private async trySadd(key: string, member: string): Promise<void> {
+    if (typeof (this.redis as unknown as Record<string, unknown>).sadd === 'function') {
+      await this.redis.sadd(key, member)
+    }
+  }
+
+  /** srem が利用可能な場合のみ呼び出す */
+  private async trySrem(key: string, member: string): Promise<void> {
+    if (typeof (this.redis as unknown as Record<string, unknown>).srem === 'function') {
+      await this.redis.srem(key, member)
+    }
+  }
+
+  /** smembers が利用可能な場合のみ呼び出す。未対応なら空配列を返す */
+  private async trySmembers(key: string): Promise<string[]> {
+    if (typeof (this.redis as unknown as Record<string, unknown>).smembers === 'function') {
+      return this.redis.smembers(key)
+    }
+    return []
+  }
+
   async create(session: Session): Promise<void> {
     const now = this.clock()
     const ttl = remainingTtlSeconds(session.expiresAt, now)
     const payload = JSON.stringify(serializeSession(session))
     await this.redis.set(sessionKey(session.id), payload, 'EX', ttl)
+    await this.trySadd(userSessionsKey(session.userId), session.id)
   }
 
   async get(sessionId: string, now: Date): Promise<Session> {
@@ -211,7 +243,37 @@ class RedisSessionStore implements SessionStore {
   }
 
   async delete(sessionId: string): Promise<void> {
+    // 削除前にセッションを読み、userId を取得してセカンダリインデックスからも除去する。
+    // セッションが存在しない場合は単純に del するだけで OK。
+    const raw = await this.redis.get(sessionKey(sessionId))
+    if (raw !== null) {
+      try {
+        const parsed = deserializeSession(JSON.parse(raw))
+        await this.trySrem(userSessionsKey(parsed.userId), sessionId)
+      } catch {
+        // 破損ペイロードはインデックス除去をスキップ
+      }
+    }
     await this.redis.del(sessionKey(sessionId))
+  }
+
+  async listByUser(userId: string): Promise<readonly Session[]> {
+    const sessionIds = await this.trySmembers(userSessionsKey(userId))
+    const sessions: Session[] = []
+    for (const id of sessionIds) {
+      const raw = await this.redis.get(sessionKey(id))
+      if (raw === null) {
+        // 期限切れや手動削除で存在しない場合はセットからも除去してスキップ
+        await this.trySrem(userSessionsKey(userId), id)
+        continue
+      }
+      try {
+        sessions.push(deserializeSession(JSON.parse(raw)))
+      } catch {
+        // 破損ペイロードはスキップ
+      }
+    }
+    return sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
 
   private parseOrThrow(raw: string, sessionId: string): Session {
@@ -274,6 +336,16 @@ class InMemorySessionStore implements SessionStore {
 
   async delete(sessionId: string): Promise<void> {
     this.store.delete(sessionId)
+  }
+
+  async listByUser(userId: string): Promise<readonly Session[]> {
+    const result: Session[] = []
+    for (const session of this.store.values()) {
+      if (session.userId === userId) {
+        result.push(cloneSession(session))
+      }
+    }
+    return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
 }
 
