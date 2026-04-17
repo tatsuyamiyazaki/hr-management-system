@@ -28,6 +28,13 @@ export const SESSION_IDLE_TTL_MS = 30 * 60 * 1000
 /** Redis キー接頭辞 */
 const SESSION_KEY_PREFIX = 'session:'
 
+/** Redis: ユーザーごとのセッション ID セット キー接頭辞 */
+const USER_SESSIONS_KEY_PREFIX = 'user_sessions:'
+
+function userSessionsKey(userId: string): string {
+  return `${USER_SESSIONS_KEY_PREFIX}${userId}`
+}
+
 export interface SessionStore {
   create(session: Session): Promise<void>
   /** 期限切れ/アイドル超過の場合は専用例外を throw する */
@@ -35,6 +42,13 @@ export interface SessionStore {
   /** lastAccessAt を now で更新し、更新後の Session を返す */
   touch(sessionId: string, now: Date): Promise<Session>
   delete(sessionId: string): Promise<void>
+  /** ユーザーID に紐づくアクティブセッションを createdAt 降順で返す (Req 1.14) */
+  listByUser(userId: string): Promise<readonly Session[]>
+  /**
+   * 指定ユーザー所有のセッションを失効させる (Req 1.15)。
+   * userId が不一致または存在しない場合は SessionNotFoundError。
+   */
+  revokeByUser(userId: string, sessionId: string): Promise<void>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,6 +194,12 @@ class RedisSessionStore implements SessionStore {
     const ttl = remainingTtlSeconds(session.expiresAt, now)
     const payload = JSON.stringify(serializeSession(session))
     await this.redis.set(sessionKey(session.id), payload, 'EX', ttl)
+    await this.redis.sadd(userSessionsKey(session.userId), session.id)
+    // user_sessions: キーにも絶対期限と同じ TTL を設定し、メモリリークを防ぐ
+    await this.redis.expire(
+      userSessionsKey(session.userId),
+      Math.ceil(SESSION_ABSOLUTE_TTL_MS / 1000),
+    )
   }
 
   async get(sessionId: string, now: Date): Promise<Session> {
@@ -211,6 +231,53 @@ class RedisSessionStore implements SessionStore {
   }
 
   async delete(sessionId: string): Promise<void> {
+    const raw = await this.redis.get(sessionKey(sessionId))
+    if (raw !== null) {
+      try {
+        const parsed = deserializeSession(JSON.parse(raw))
+        await this.redis.srem(userSessionsKey(parsed.userId), sessionId)
+      } catch {
+        // 破損ペイロードはインデックス除去をスキップ
+      }
+    }
+    await this.redis.del(sessionKey(sessionId))
+  }
+
+  async listByUser(userId: string): Promise<readonly Session[]> {
+    const sessionIds = await this.redis.smembers(userSessionsKey(userId))
+    const sessions: Session[] = []
+    for (const id of sessionIds) {
+      const raw = await this.redis.get(sessionKey(id))
+      if (raw === null) {
+        // TTL 切れや手動削除済みのエントリをセカンダリインデックスから除去
+        await this.redis.srem(userSessionsKey(userId), id)
+        continue
+      }
+      try {
+        sessions.push(deserializeSession(JSON.parse(raw)))
+      } catch {
+        // 破損ペイロードはスキップ
+      }
+    }
+    return sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  }
+
+  async revokeByUser(userId: string, sessionId: string): Promise<void> {
+    const raw = await this.redis.get(sessionKey(sessionId))
+    if (raw === null) {
+      throw new SessionNotFoundError(sessionId)
+    }
+    let parsed: Session
+    try {
+      parsed = deserializeSession(JSON.parse(raw))
+    } catch {
+      throw new SessionNotFoundError(sessionId)
+    }
+    if (parsed.userId !== userId) {
+      throw new SessionNotFoundError(sessionId)
+    }
+    // セカンダリインデックスとセッション本体を同時削除
+    await this.redis.srem(userSessionsKey(userId), sessionId)
     await this.redis.del(sessionKey(sessionId))
   }
 
@@ -236,15 +303,19 @@ export function createRedisSessionStore(deps: RedisSessionStoreDeps): SessionSto
 export interface InMemorySessionStoreOptions {
   readonly absoluteTtlMs?: number
   readonly idleTtlMs?: number
+  /** テスト用クロック注入。デフォルトは new Date() */
+  readonly clock?: () => Date
 }
 
 class InMemorySessionStore implements SessionStore {
   private readonly store: Map<string, Session>
   private readonly idleTtlMs: number
+  private readonly clock: () => Date
 
   constructor(opts?: InMemorySessionStoreOptions) {
     this.store = new Map()
     this.idleTtlMs = opts?.idleTtlMs ?? SESSION_IDLE_TTL_MS
+    this.clock = opts?.clock ?? (() => new Date())
   }
 
   async create(session: Session): Promise<void> {
@@ -273,6 +344,26 @@ class InMemorySessionStore implements SessionStore {
   }
 
   async delete(sessionId: string): Promise<void> {
+    this.store.delete(sessionId)
+  }
+
+  async listByUser(userId: string): Promise<readonly Session[]> {
+    const now = this.clock()
+    const result: Session[] = []
+    for (const session of this.store.values()) {
+      if (session.userId !== userId) continue
+      // 絶対期限切れのセッションは一覧から除外
+      if (now.getTime() > session.expiresAt.getTime()) continue
+      result.push(cloneSession(session))
+    }
+    return result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  }
+
+  async revokeByUser(userId: string, sessionId: string): Promise<void> {
+    const session = this.store.get(sessionId)
+    if (!session || session.userId !== userId) {
+      throw new SessionNotFoundError(sessionId)
+    }
     this.store.delete(sessionId)
   }
 }
