@@ -1,5 +1,6 @@
 /**
  * Task 6.1: 認証ユースケースが必要とする最小限のユーザー取得ポート。
+ * Task 6.5: 招待フロー用に WritableAuthUserRepository を追加。
  *
  * Prisma 実装は Task 6.x 以降で追加する。本タスクでは InMemory 実装のみを提供し、
  * 業務ロジック層は narrow なインターフェースに依存する。
@@ -40,6 +41,16 @@ export interface AuthUserRepository {
   findById(id: string): Promise<AuthUserRecord | null>
 }
 
+/**
+ * Task 6.5: 招待フローで新規ユーザーを作成するための書き込みポート。
+ * 招待サービスのみがこのインターフェースに依存する。
+ */
+export interface WritableAuthUserRepository extends AuthUserRepository {
+  createUser(record: AuthUserRecord): Promise<void>
+  updatePasswordHash(userId: string, newHash: string): Promise<void>
+  updateStatus(userId: string, status: AuthUserStatus): Promise<void>
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // InMemory implementation (tests / local dev)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,7 +59,7 @@ function cloneRecord(record: AuthUserRecord): AuthUserRecord {
   return { ...record }
 }
 
-class InMemoryAuthUserRepository implements AuthUserRepository {
+class InMemoryAuthUserRepository implements WritableAuthUserRepository {
   private readonly byEmailHash: Map<string, AuthUserRecord>
   private readonly byId: Map<string, AuthUserRecord>
 
@@ -73,10 +84,32 @@ class InMemoryAuthUserRepository implements AuthUserRepository {
     const found = this.byId.get(id)
     return found ? cloneRecord(found) : null
   }
+
+  async createUser(record: AuthUserRecord): Promise<void> {
+    const copy = cloneRecord(record)
+    this.byEmailHash.set(copy.emailHash, copy)
+    this.byId.set(copy.id, copy)
+  }
+
+  async updatePasswordHash(userId: string, newHash: string): Promise<void> {
+    const existing = this.byId.get(userId)
+    if (!existing) return
+    const updated: AuthUserRecord = { ...existing, passwordHash: newHash }
+    this.byEmailHash.set(updated.emailHash, updated)
+    this.byId.set(userId, updated)
+  }
+
+  async updateStatus(userId: string, status: AuthUserStatus): Promise<void> {
+    const existing = this.byId.get(userId)
+    if (!existing) return
+    const updated: AuthUserRecord = { ...existing, status }
+    this.byEmailHash.set(updated.emailHash, updated)
+    this.byId.set(userId, updated)
+  }
 }
 
 export function createInMemoryAuthUserRepository(
   seed?: readonly AuthUserRecord[],
-): AuthUserRepository {
+): WritableAuthUserRepository {
   return new InMemoryAuthUserRepository(seed)
 }
