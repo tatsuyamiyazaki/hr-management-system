@@ -11,27 +11,14 @@ import { z } from 'zod'
 import { getServerSession } from 'next-auth'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SessionNotFoundError } from '@/lib/auth/auth-types'
-import type { AuthService } from '@/lib/auth/auth-service'
+import { getAuthService } from '@/lib/auth/auth-service-di'
 
-/** パスパラメータのバリデーションスキーマ */
+export { setAuthServiceForTesting, clearAuthServiceForTesting } from '@/lib/auth/auth-service-di'
+
+/** UUID 形式を強制してパス・トラバーサル等の不正値を早期排除する */
 const sessionIdParamSchema = z.object({
-  sessionId: z.string().min(1, 'sessionId must be a non-empty string'),
+  sessionId: z.string().uuid('sessionId must be a valid UUID'),
 })
-
-/**
- * 依存注入用ファクトリ。テスト時に差し替え可能。
- * プロダクションでは実際の authService インスタンスを使う。
- */
-let _authService: AuthService | null = null
-
-export function setAuthServiceForTesting(svc: AuthService): void {
-  _authService = svc
-}
-
-function getAuthService(): AuthService {
-  if (_authService) return _authService
-  throw new Error('AuthService is not configured. Use setAuthServiceForTesting or wire DI.')
-}
 
 export async function DELETE(
   _request: NextRequest,
@@ -42,15 +29,14 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId: string | undefined = (
-    serverSession as Record<string, unknown> & { user?: { id?: string } }
-  ).user?.id
+  // next-auth-config.ts の session コールバックがトップレベルに設定する
+  const sess = serverSession as Record<string, unknown>
+  const userId = typeof sess.userId === 'string' ? sess.userId : undefined
 
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Zod によるパスパラメータ検証
   const rawParams = await params
   const parsed = sessionIdParamSchema.safeParse(rawParams)
   if (!parsed.success) {
@@ -60,8 +46,7 @@ export async function DELETE(
   const { sessionId } = parsed.data
 
   try {
-    const authService = getAuthService()
-    await authService.revokeSession(userId, sessionId)
+    await getAuthService().revokeSession(userId, sessionId)
     return new NextResponse(null, { status: 204 })
   } catch (error: unknown) {
     if (error instanceof SessionNotFoundError) {

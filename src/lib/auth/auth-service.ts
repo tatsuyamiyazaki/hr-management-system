@@ -16,7 +16,6 @@ import { computeEmailHash } from '@/lib/shared/crypto'
 import {
   AccountLockedError,
   InvalidCredentialsError,
-  SessionNotFoundError,
   loginInputSchema,
   type LoginInput,
   type Session,
@@ -248,12 +247,7 @@ class AuthServiceImpl implements AuthService {
   }
 
   async revokeSession(requesterId: string, sessionId: string): Promise<void> {
-    const sessions = await this.sessions.listByUser(requesterId)
-    const owned = sessions.find((s) => s.id === sessionId)
-    if (!owned) {
-      throw new SessionNotFoundError(sessionId)
-    }
-    await this.sessions.delete(sessionId)
+    await this.sessions.revokeByUser(requesterId, sessionId)
   }
 }
 

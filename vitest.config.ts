@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     // E2E テスト（Playwright）は vitest の対象外
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**', '.claude/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
