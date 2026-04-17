@@ -27,6 +27,8 @@ export const AUDIT_ACTIONS = [
   'EVALUATION_FINALIZED',
   // Export events (Requirement 17.2)
   'DATA_EXPORT',
+  // Custom broadcast notification events (Requirement 15.8)
+  'CUSTOM_BROADCAST_SENT',
 ] as const
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
@@ -52,6 +54,7 @@ export const AUDIT_RESOURCE_TYPES = [
   'MASTER_DATA',
   'EXPORT_JOB',
   'SYSTEM_CONFIG',
+  'NOTIFICATION',
 ] as const
 
 export type AuditResourceType = (typeof AUDIT_RESOURCE_TYPES)[number]

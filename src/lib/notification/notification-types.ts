@@ -99,3 +99,35 @@ export function isNotificationChannel(value: unknown): value is NotificationChan
 export function isNotificationEvent(value: unknown): value is NotificationEvent {
   return notificationEventSchema.safeParse(value).success
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User roles（Requirement 1.7 準拠、4 ロール）
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const USER_ROLES = ['ADMIN', 'HR_MANAGER', 'MANAGER', 'EMPLOYEE'] as const
+export type UserRole = (typeof USER_ROLES)[number]
+
+export function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Broadcast types（Req 15.8: HR_MANAGER 以上が全社員または特定グループへ送信）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 送信対象指定（全社員 or 特定グループ） */
+export const broadcastTargetSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('ALL') }),
+  z.object({ type: z.literal('GROUP'), groupId: z.string().min(1) }),
+])
+
+export type BroadcastTarget = z.infer<typeof broadcastTargetSchema>
+
+/** カスタムブロードキャスト入力 */
+export const broadcastInputSchema = z.object({
+  title: z.string().min(1).max(200),
+  body: z.string().min(1),
+  target: broadcastTargetSchema,
+})
+
+export type BroadcastInput = z.infer<typeof broadcastInputSchema>

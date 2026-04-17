@@ -11,6 +11,10 @@ import {
   isNotification,
   notificationPreferenceSchema,
   notificationPreferencesSchema,
+  USER_ROLES,
+  isUserRole,
+  broadcastInputSchema,
+  broadcastTargetSchema,
 } from '@/lib/notification/notification-types'
 
 describe('NOTIFICATION_CATEGORIES', () => {
@@ -269,6 +273,116 @@ describe('notificationPreferencesSchema', () => {
 
   it('should reject a non-array value', () => {
     const result = notificationPreferencesSchema.safeParse({ category: 'SYSTEM' })
+    expect(result.success).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User roles（Req 1.7 / Req 15.8）
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('USER_ROLES', () => {
+  it('should contain the four required roles', () => {
+    expect(USER_ROLES).toContain('ADMIN')
+    expect(USER_ROLES).toContain('HR_MANAGER')
+    expect(USER_ROLES).toContain('MANAGER')
+    expect(USER_ROLES).toContain('EMPLOYEE')
+    expect(USER_ROLES).toHaveLength(4)
+  })
+})
+
+describe('isUserRole()', () => {
+  it('should return true for valid roles', () => {
+    expect(isUserRole('ADMIN')).toBe(true)
+    expect(isUserRole('HR_MANAGER')).toBe(true)
+    expect(isUserRole('MANAGER')).toBe(true)
+    expect(isUserRole('EMPLOYEE')).toBe(true)
+  })
+
+  it('should return false for invalid roles', () => {
+    expect(isUserRole('admin')).toBe(false)
+    expect(isUserRole('SUPER_ADMIN')).toBe(false)
+    expect(isUserRole('')).toBe(false)
+    expect(isUserRole(null)).toBe(false)
+    expect(isUserRole(42)).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Broadcast schemas（Req 15.8）
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('broadcastTargetSchema', () => {
+  it('accepts target ALL', () => {
+    expect(broadcastTargetSchema.safeParse({ type: 'ALL' }).success).toBe(true)
+  })
+
+  it('accepts target GROUP with non-empty groupId', () => {
+    expect(broadcastTargetSchema.safeParse({ type: 'GROUP', groupId: 'group-1' }).success).toBe(
+      true,
+    )
+  })
+
+  it('rejects target GROUP with empty groupId', () => {
+    expect(broadcastTargetSchema.safeParse({ type: 'GROUP', groupId: '' }).success).toBe(false)
+  })
+
+  it('rejects unknown type', () => {
+    expect(broadcastTargetSchema.safeParse({ type: 'EVERYONE' }).success).toBe(false)
+  })
+})
+
+describe('broadcastInputSchema', () => {
+  it('accepts a valid broadcast input with target=ALL', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: 'お知らせ',
+      body: '本文',
+      target: { type: 'ALL' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a valid broadcast input with target=GROUP', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: 'お知らせ',
+      body: '本文',
+      target: { type: 'GROUP', groupId: 'group-1' },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects empty title', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: '',
+      body: '本文',
+      target: { type: 'ALL' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty body', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: 'お知らせ',
+      body: '',
+      target: { type: 'ALL' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects title longer than 200 characters', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: 'a'.repeat(201),
+      body: '本文',
+      target: { type: 'ALL' },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing target', () => {
+    const result = broadcastInputSchema.safeParse({
+      title: 'お知らせ',
+      body: '本文',
+    })
     expect(result.success).toBe(false)
   })
 })

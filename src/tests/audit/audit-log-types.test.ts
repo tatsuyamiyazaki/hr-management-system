@@ -33,6 +33,10 @@ describe('AuditAction', () => {
   it('should include evaluation finalization events', () => {
     expect(AUDIT_ACTIONS).toContain('EVALUATION_FINALIZED')
   })
+
+  it('should include custom broadcast notification events (Req 15.8)', () => {
+    expect(AUDIT_ACTIONS).toContain('CUSTOM_BROADCAST_SENT')
+  })
 })
 
 describe('AuditResourceType', () => {
@@ -42,6 +46,10 @@ describe('AuditResourceType', () => {
     expect(AUDIT_RESOURCE_TYPES).toContain('ORGANIZATION')
     expect(AUDIT_RESOURCE_TYPES).toContain('EVALUATION')
     expect(AUDIT_RESOURCE_TYPES).toContain('EXPORT_JOB')
+  })
+
+  it('should include NOTIFICATION resource type (Req 15.8)', () => {
+    expect(AUDIT_RESOURCE_TYPES).toContain('NOTIFICATION')
   })
 })
 
