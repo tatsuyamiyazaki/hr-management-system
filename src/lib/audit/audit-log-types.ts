@@ -29,6 +29,8 @@ export const AUDIT_ACTIONS = [
   'DATA_EXPORT',
   // Custom broadcast notification events (Requirement 15.8)
   'CUSTOM_BROADCAST_SENT',
+  // Access denied events (Requirements 1.8, 1.9 / Task 6.3)
+  'ACCESS_DENIED',
 ] as const
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
