@@ -35,8 +35,17 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Issue #107: AuthService 未初期化は 503 Service Unavailable として扱い、
+  // instrumentation.ts の設定不備が原因であることを伝える (500 よりも安全な手掛かり)。
+  let authService: ReturnType<typeof getAuthService>
   try {
-    const sessions = await getAuthService().listSessions(userId)
+    authService = getAuthService()
+  } catch {
+    return NextResponse.json({ error: 'Auth service not initialized' }, { status: 503 })
+  }
+
+  try {
+    const sessions = await authService.listSessions(userId)
     const response: SessionResponse[] = sessions.map((s) => ({
       ...s,
       isCurrent: s.id === currentSessionId,
