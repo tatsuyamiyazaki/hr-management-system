@@ -218,7 +218,7 @@ describe('createRedisSessionStore', () => {
     await store.create(makeSession(now, { id: 'sess-b', userId: 'user-1' }))
     await store.create(makeSession(now, { id: 'sess-c', userId: 'user-2' }))
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     const ids = sessions.map((s) => s.id)
     expect(ids).toContain('sess-a')
     expect(ids).toContain('sess-b')
@@ -234,11 +234,87 @@ describe('createRedisSessionStore', () => {
     // セッション本体だけ手動削除して TTL 切れをシミュレート
     await redis.del('session:sess-redis-1')
 
-    const sessions = await store.listByUser('user-1')
+    const sessions = await store.listByUser('user-1', now)
     expect(sessions).toHaveLength(0)
 
     const sremCall = redis.calls.filter((c) => c[0] === 'srem')
     expect(sremCall.length).toBeGreaterThan(0)
+  })
+
+  it('listByUser は idle timeout 超過セッションを除外し、user_sessions セットからも除去する', async () => {
+    const redis = createFakeRedis()
+    const now = new Date('2026-04-17T00:00:00.000Z')
+    const store = createRedisSessionStore({ redis, clock: () => now })
+
+    // active + stale (idle 超過) の 2 セッションを登録
+    await store.create(makeSession(now, { id: 'sess-active', userId: 'user-1' }))
+    await store.create(
+      makeSession(now, {
+        id: 'sess-stale',
+        userId: 'user-1',
+        lastAccessAt: new Date(now.getTime() - SESSION_IDLE_TTL_MS - 1000),
+      }),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    const ids = sessions.map((s) => s.id)
+    expect(ids).toContain('sess-active')
+    expect(ids).not.toContain('sess-stale')
+    expect(sessions).toHaveLength(1)
+
+    // user_sessions セットから sess-stale が srem されている
+    const sremCalls = redis.calls.filter((c) => c[0] === 'srem')
+    const sremStale = sremCalls.find(
+      (c) => c[1] === 'user_sessions:user-1' && c[2] === 'sess-stale',
+    )
+    expect(sremStale).toBeDefined()
+  })
+
+  it('listByUser は絶対期限切れセッションを除外する', async () => {
+    const redis = createFakeRedis()
+    const now = new Date('2026-04-17T00:00:00.000Z')
+    const store = createRedisSessionStore({ redis, clock: () => now })
+
+    await store.create(makeSession(now, { id: 'sess-active', userId: 'user-1' }))
+    await store.create(
+      makeSession(now, {
+        id: 'sess-expired',
+        userId: 'user-1',
+        expiresAt: new Date(now.getTime() - 1),
+      }),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    const ids = sessions.map((s) => s.id)
+    expect(ids).toContain('sess-active')
+    expect(ids).not.toContain('sess-expired')
+    expect(sessions).toHaveLength(1)
+  })
+
+  it('listByUser は idle timeout と絶対期限の両方を考慮する', async () => {
+    const redis = createFakeRedis()
+    const now = new Date('2026-04-17T00:00:00.000Z')
+    const store = createRedisSessionStore({ redis, clock: () => now })
+
+    await store.create(makeSession(now, { id: 'sess-ok', userId: 'user-1' }))
+    await store.create(
+      makeSession(now, {
+        id: 'sess-expired',
+        userId: 'user-1',
+        expiresAt: new Date(now.getTime() - 1),
+      }),
+    )
+    await store.create(
+      makeSession(now, {
+        id: 'sess-idle',
+        userId: 'user-1',
+        lastAccessAt: new Date(now.getTime() - SESSION_IDLE_TTL_MS - 1000),
+      }),
+    )
+
+    const sessions = await store.listByUser('user-1', now)
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0]!.id).toBe('sess-ok')
   })
 
   it('revokeByUser で所有セッションを失効できる', async () => {
