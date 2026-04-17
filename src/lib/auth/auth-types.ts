@@ -119,6 +119,47 @@ export class SessionNotFoundError extends Error {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Task 6.2 / Req 1.3, 1.12, 1.13: パスワードポリシー & アカウントロック
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * パスワードポリシー違反の詳細ルール識別子。
+ * - LENGTH: 最低長 (12 文字) 未満 (Req 1.12)
+ * - COMPLEXITY: 英大文字 / 英小文字 / 数字 / 記号のうち 3 種未満 (Req 1.12)
+ * - REUSED: 過去 5 世代以内のパスワードと同一 (Req 1.13)
+ */
+export const PASSWORD_POLICY_RULES = ['LENGTH', 'COMPLEXITY', 'REUSED'] as const
+export type PasswordPolicyRule = (typeof PASSWORD_POLICY_RULES)[number]
+
+/**
+ * パスワードポリシー違反 (Req 1.12, 1.13)。
+ * rule で違反理由を保持し、呼び出し側はそれを見て UI メッセージを出し分ける。
+ */
+export class PasswordPolicyViolationError extends Error {
+  public readonly rule: PasswordPolicyRule
+
+  constructor(rule: PasswordPolicyRule) {
+    super(`Password policy violation: ${rule}`)
+    this.name = 'PasswordPolicyViolationError'
+    this.rule = rule
+  }
+}
+
+/**
+ * アカウントロック状態 (Req 1.3)。
+ * lockedUntil には解除予定時刻が入る。認証層はこの時刻まで login を拒否する。
+ */
+export class AccountLockedError extends Error {
+  public readonly lockedUntil: Date
+
+  constructor(lockedUntil: Date) {
+    super('Account is locked')
+    this.name = 'AccountLockedError'
+    this.lockedUntil = lockedUntil
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Re-exports
 // ─────────────────────────────────────────────────────────────────────────────
 
