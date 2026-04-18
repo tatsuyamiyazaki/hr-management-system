@@ -143,4 +143,4 @@ query.graphql
 
 # Git worktrees
 .worktrees/
-.claude/worktrees/
+.claude/worktrees/package-lock.json
