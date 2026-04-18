@@ -4,6 +4,15 @@ import { createLocalBlobStorage } from './blob-storage'
 import { isExportRequest } from './export-types'
 import type { ExportJobResult, ExportRequest } from './export-types'
 import { createBaseWorker } from '@/lib/jobs/base-worker'
+import {
+  generateGradeCsv,
+  generateRoleCsv,
+  generateSkillCsv,
+  isMasterResource,
+  type GradeMasterRow,
+  type RoleMasterRow,
+  type SkillMasterRow,
+} from '@/lib/master/master-csv'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ジョブプロセッサ（テスト可能な純粋関数として分離）
@@ -36,7 +45,7 @@ export async function processExportJob(job: Job, storage: BlobStorage): Promise<
 function generateContent(payload: ExportRequest): string {
   switch (payload.type) {
     case 'MasterCsv':
-      return `resource,id,name\n${payload.resource},,,`
+      return generateMasterCsv(payload.resource)
 
     case 'OrganizationCsv':
       return 'org_id,name,parent_org_id\n'
@@ -48,6 +57,34 @@ function generateContent(payload: ExportRequest): string {
 
     case 'AuditLog':
       return 'occurred_at,action,resource_type,resource_id,actor_id\n'
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MasterCsv 生成（Issue #26）
+// 実 DB 読み出しは MasterRepository（後続タスク）に移す前提の空データスタブ。
+// ここでは resource 判別とヘッダ付き CSV 生成の責務までを確定させる。
+// ─────────────────────────────────────────────────────────────────────────────
+
+function generateMasterCsv(resource: string): string {
+  if (!isMasterResource(resource)) {
+    // 不明 resource: ヘッダのみの空 CSV は誤解を招くため、明示的にエラーメッセージを残す
+    return `# error: 未対応のマスタリソースです: "${resource}"\n`
+  }
+
+  switch (resource) {
+    case 'skill': {
+      const rows: SkillMasterRow[] = []
+      return generateSkillCsv(rows)
+    }
+    case 'role': {
+      const rows: RoleMasterRow[] = []
+      return generateRoleCsv(rows)
+    }
+    case 'grade': {
+      const rows: GradeMasterRow[] = []
+      return generateGradeCsv(rows)
+    }
   }
 }
 
