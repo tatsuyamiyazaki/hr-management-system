@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS employee_skills (
   id                    TEXT         NOT NULL PRIMARY KEY,
   "userId"              TEXT         NOT NULL,
   "skillId"             TEXT         NOT NULL,
+  -- 保有スキルレベル 1〜5
   level                 INTEGER      NOT NULL,
   "acquiredAt"          TIMESTAMP(3) NOT NULL,
   "approvedByManagerId" TEXT,

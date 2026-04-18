@@ -312,6 +312,31 @@ model GradeWeightHistory {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 社員スキル (Requirement 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 社員保有スキル (Requirement 4.4, 4.5)
+/// - マネージャー承認済み / 未承認を区別するため approvedByManagerId / approvedAt を保持
+/// - SkillGapCalculator はこのモデルを読み取って役職要件との差分を計算する（Task 11.1）
+model EmployeeSkill {
+  id                  String    @id @default(cuid())
+  userId              String
+  skillId             String
+  /// 保有スキルレベル 1〜5
+  level               Int
+  acquiredAt          DateTime
+  approvedByManagerId String?
+  approvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([userId, skillId])
+  @@index([skillId, level])
+  @@index([userId])
+  @@map("employee_skills")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 組織管理 (Requirement 3)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -355,33 +380,4 @@ model TransferRecord {
 
   @@index([userId, effectiveDate])
   @@map("transfer_records")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 社員スキル (Requirement 4.4, 4.5)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// 社員が自己申告したスキル。
-/// - level は 1〜5 (アプリ層で検証)
-/// - approvedByManagerId / approvedAt が NULL なら「承認待ち」、値があれば「承認済み」
-/// - (userId, skillId) で一意 (ユーザーが同じスキルを複数持たないようにする)
-model EmployeeSkill {
-  id                  String    @id @default(cuid())
-  userId              String
-  skillId             String
-  /// スキルレベル 1〜5
-  level               Int
-  /// スキル習得日
-  acquiredAt          DateTime
-  /// 承認したマネージャーの userId (NULL = 未承認)
-  approvedByManagerId String?
-  /// 承認日時 (NULL = 未承認)
-  approvedAt          DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  @@unique([userId, skillId])
-  @@index([skillId, level])
-  @@index([userId])
-  @@map("employee_skills")
 }
