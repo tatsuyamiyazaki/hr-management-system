@@ -25,10 +25,16 @@ export function isImportJobStatus(value: unknown): value is ImportJobStatus {
 const masterCsvSchema = z.object({
   type: z.literal('MasterCsv'),
   resource: z.string().min(1),
+  /**
+   * Issue #26: API レイヤーから渡される CSV 本文。
+   * 省略時はワーカー側で空扱い。
+   */
+  csvContent: z.string().optional(),
 })
 
 const employeeCsvSchema = z.object({
   type: z.literal('EmployeeCsv'),
+  csvContent: z.string().optional(),
 })
 
 export const importRequestSchema = z.discriminatedUnion('type', [
