@@ -283,20 +283,14 @@ model RoleSkillRequirement {
 /// 等級マスタ (Requirement 2.3)
 /// w1+w2+w3 = 1 はアプリ層で検証
 model GradeMaster {
-<<<<<<< HEAD
   id                String               @id @default(cuid())
   label             String               @unique
-=======
-  id                String @id @default(cuid())
-  label             String @unique
->>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691
   /// 業績評価ウェイト (w1)
   performanceWeight Float
   /// 目標評価ウェイト (w2)
   goalWeight        Float
   /// 360度評価ウェイト (w3)
   feedbackWeight    Float
-<<<<<<< HEAD
   weightHistory     GradeWeightHistory[]
 
   @@map("grade_masters")
@@ -316,8 +310,49 @@ model GradeWeightHistory {
   @@index([gradeId])
   @@map("grade_weight_histories")
 }
-=======
 
-  @@map("grade_masters")
+// ─────────────────────────────────────────────────────────────────────────────
+// 組織管理 (Requirement 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 部署 (Requirement 3.6)
+/// 階層構造は parentId による自己参照で表現し、deletedAt による論理削除をサポート。
+model Department {
+  id        String    @id @default(cuid())
+  name      String
+  parentId  String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([parentId])
+  @@map("departments")
 }
->>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691
+
+/// ポジション (Requirement 3.6, 3.7)
+/// supervisorPositionId による上下関係、holderUserId による担当者割当を表現する。
+model Position {
+  id                   String  @id @default(cuid())
+  departmentId         String
+  roleId               String
+  holderUserId         String?
+  supervisorPositionId String?
+
+  @@index([departmentId])
+  @@index([supervisorPositionId])
+  @@map("positions")
+}
+
+/// 異動履歴 (Requirement 3.7)
+/// ポジション変更時に追記される append-only なイベントレコード。
+model TransferRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  fromPositionId String?
+  toPositionId   String?
+  effectiveDate  DateTime
+  changedBy      String
+  createdAt      DateTime @default(now())
+
+  @@index([userId, effectiveDate])
+  @@map("transfer_records")
+}
