@@ -1,9 +1,10 @@
 /**
- * Issue #29 / Req 14.1, 14.9: 社員ライフサイクルサービス
+ * Issue #29 / Req 14.1, 14.2, 14.3, 14.4, 14.9: 社員ライフサイクルサービス
  *
  * - createEmployee: 招待フローを呼び出して PENDING_JOIN ユーザーを作成し、
  *   プロフィール情報（入社日・配属・役職）を EmployeeProfileRepository に保存する
  * - bulkImportUsers: CSV をパースして有効行を createEmployee に流し、失敗行を集約する
+ * - updateStatus: 社員ステータスを更新し、休職/退職時に評価から自動除外する (Req 14.2〜14.4)
  *
  * 既存の InvitationService / WritableAuthUserRepository を再利用し、
  * ユーザー作成の責務はサービス層で重複させない。
@@ -17,10 +18,14 @@ import type { ImportRowError } from '@/lib/import/import-types'
 import { parseEmployeeCsv } from './employee-csv'
 import {
   EmployeeAlreadyExistsError,
+  EmployeeNotFoundError,
+  InvalidStatusTransitionError,
+  isAllowedTransition,
   type BulkImportResult,
   type CreateEmployeeInput,
   type Employee,
   type EmployeeCsvRow,
+  type UpdateEmployeeStatusInput,
 } from './lifecycle-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,6 +42,18 @@ export interface EmployeeProfileRepository {
     readonly departmentId: string
     readonly positionId: string
   }): Promise<void>
+}
+
+/**
+ * Req 14.3, 14.4: 評価自動除外の narrow port。
+ * 休職 / 退職時に進行中の評価対象・評価者から該当社員を除外する。
+ */
+export interface EvaluationExclusionPort {
+  /**
+   * 該当ユーザーを進行中の全評価サイクルから除外する。
+   * @returns 除外された評価件数
+   */
+  excludeFromActiveEvaluations(userId: string): Promise<number>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,6 +76,16 @@ export interface LifecycleService {
    * - 常に totalRows = successCount + failureCount を満たす
    */
   bulkImportUsers(file: Buffer, invitedByUserId: string): Promise<BulkImportResult>
+
+  /**
+   * 社員のステータスを更新する (Req 14.2, 14.3, 14.4)。
+   * - ステータス遷移の妥当性を検証
+   * - ON_LEAVE / RESIGNED への遷移時は評価から自動除外 (Req 14.3)
+   * - RESIGNED の場合は退職日 (effectiveDate) を記録 (Req 14.4)
+   * @throws EmployeeNotFoundError 指定ユーザーが存在しない
+   * @throws InvalidStatusTransitionError 許可されない遷移
+   */
+  updateStatus(userId: string, input: UpdateEmployeeStatusInput): Promise<void>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +96,8 @@ export interface LifecycleServiceDeps {
   readonly invitations: InvitationService
   readonly users: WritableAuthUserRepository
   readonly profiles: EmployeeProfileRepository
+  /** Req 14.3, 14.4: 評価自動除外 (未指定時は除外処理をスキップ) */
+  readonly evaluationExclusion?: EvaluationExclusionPort
   readonly appSecret: string
   readonly jobIdFactory?: () => string
 }
@@ -81,6 +110,7 @@ class LifecycleServiceImpl implements LifecycleService {
   private readonly invitations: InvitationService
   private readonly users: WritableAuthUserRepository
   private readonly profiles: EmployeeProfileRepository
+  private readonly evaluationExclusion?: EvaluationExclusionPort
   private readonly appSecret: string
   private readonly jobIdFactory: () => string
 
@@ -88,6 +118,7 @@ class LifecycleServiceImpl implements LifecycleService {
     this.invitations = deps.invitations
     this.users = deps.users
     this.profiles = deps.profiles
+    this.evaluationExclusion = deps.evaluationExclusion
     this.appSecret = deps.appSecret
     this.jobIdFactory = deps.jobIdFactory ?? randomUUID
   }
@@ -155,6 +186,28 @@ class LifecycleServiceImpl implements LifecycleService {
       failureCount,
       errors,
       jobId: this.jobIdFactory(),
+    }
+  }
+
+  async updateStatus(userId: string, input: UpdateEmployeeStatusInput): Promise<void> {
+    const user = await this.users.findById(userId)
+    if (!user) {
+      throw new EmployeeNotFoundError(userId)
+    }
+
+    if (!isAllowedTransition(user.status, input.newStatus)) {
+      throw new InvalidStatusTransitionError(user.status, input.newStatus)
+    }
+
+    // ステータスを更新
+    await this.users.updateStatus(userId, input.newStatus)
+
+    // Req 14.3, 14.4: 休職・退職時は進行中の評価から自動除外
+    if (
+      (input.newStatus === 'ON_LEAVE' || input.newStatus === 'RESIGNED') &&
+      this.evaluationExclusion
+    ) {
+      await this.evaluationExclusion.excludeFromActiveEvaluations(userId)
     }
   }
 
