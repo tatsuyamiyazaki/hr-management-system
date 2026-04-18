@@ -146,6 +146,9 @@ export class PrismaSearchRepository implements SearchRepository {
       LIMIT ${limitParam}
     `
 
+    // Note: $queryRawUnsafe is used because the WHERE clause is dynamically composed.
+    // All user-supplied values are passed as parameterized placeholders ($1, $2, …),
+    // so no raw user input is interpolated into the SQL string.
     const rows: RawSearchRow[] = await (this.db as unknown as RawQueryExecutor).$queryRawUnsafe(
       sql,
       ...params,

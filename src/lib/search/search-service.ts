@@ -65,8 +65,8 @@ class SearchServiceImpl implements SearchService {
       return { emailHash: null, employeeCodeHash: null }
     }
 
-    // メールアドレス判定（簡易: @ を含む）
-    const looksLikeEmail = trimmed.includes('@')
+    // メールアドレス判定（簡易: user@domain.tld 形式）
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
     const emailHash = looksLikeEmail
       ? await computeEmailHash(trimmed, this.appSecret)
       : null
