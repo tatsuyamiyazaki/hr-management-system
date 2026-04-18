@@ -235,3 +235,62 @@ model AccessLog {
   @@index([path, requestedAt])
   @@map("access_logs")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// マスタ管理 (Requirement 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// スキルマスタ (Requirement 2.1, 2.4)
+model SkillMaster {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String
+  description String?
+  /// true = 廃止済み（既存データ保持・新規選択肢から除外）
+  deprecated  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@map("skill_masters")
+}
+
+/// 役職マスタ (Requirement 2.2)
+model RoleMaster {
+  id                String                 @id @default(cuid())
+  name              String                 @unique
+  gradeId           String
+  skillRequirements RoleSkillRequirement[]
+
+  @@index([gradeId])
+  @@map("role_masters")
+}
+
+/// 役職必要スキル要件 (Requirement 2.2, 2.5)
+model RoleSkillRequirement {
+  id            String @id @default(cuid())
+  roleId        String
+  skillId       String
+  /// 必要スキルレベル 1〜5
+  requiredLevel Int
+
+  role RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, skillId])
+  @@index([skillId])
+  @@map("role_skill_requirements")
+}
+
+/// 等級マスタ (Requirement 2.3)
+/// w1+w2+w3 = 1 はアプリ層で検証
+model GradeMaster {
+  id                String @id @default(cuid())
+  label             String @unique
+  /// 業績評価ウェイト (w1)
+  performanceWeight Float
+  /// 目標評価ウェイト (w2)
+  goalWeight        Float
+  /// 360度評価ウェイト (w3)
+  feedbackWeight    Float
+
+  @@map("grade_masters")
+}
