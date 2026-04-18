@@ -29,6 +29,13 @@ import {
 // Port
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface GradeWeightHistoryEntry {
+  readonly gradeId: GradeMasterId
+  readonly changedBy: string
+  readonly beforeJson: Record<string, unknown>
+  readonly afterJson: Record<string, unknown>
+}
+
 export interface MasterRepository {
   // Skills (Req 2.1, 2.4)
   listSkills(includeDeprecated?: boolean): Promise<SkillMaster[]>
@@ -47,6 +54,8 @@ export interface MasterRepository {
   findGradeById(id: GradeMasterId): Promise<GradeMaster | null>
   upsertGrade(input: GradeMasterInput): Promise<GradeMaster>
   deleteGrade(id: GradeMasterId): Promise<void>
+
+  recordGradeWeightHistory(entry: GradeWeightHistoryEntry): Promise<void>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,6 +327,17 @@ class PrismaMasterRepository implements MasterRepository {
       if (isRecordNotFound(err)) throw new MasterNotFoundError('grade', id)
       throw err
     }
+  }
+
+  async recordGradeWeightHistory(entry: GradeWeightHistoryEntry): Promise<void> {
+    await this.db.gradeWeightHistory.create({
+      data: {
+        gradeId: entry.gradeId,
+        changedBy: entry.changedBy,
+        beforeJson: entry.beforeJson as Prisma.InputJsonValue,
+        afterJson: entry.afterJson as Prisma.InputJsonValue,
+      },
+    })
   }
 }
 

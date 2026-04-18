@@ -128,6 +128,14 @@ export interface GradeMaster {
   readonly feedbackWeight: number
 }
 
+/** 等級ウェイトスナップショット (監査ログ / 履歴レコード用) */
+export interface GradeWeightSnapshot {
+  readonly label: string
+  readonly performanceWeight: number
+  readonly goalWeight: number
+  readonly feedbackWeight: number
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Domain exceptions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +180,28 @@ export class GradeWeightSumError extends Error {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+export function toGradeWeightSnapshot(grade: GradeMaster): GradeWeightSnapshot {
+  return {
+    label: grade.label,
+    performanceWeight: grade.performanceWeight,
+    goalWeight: grade.goalWeight,
+    feedbackWeight: grade.feedbackWeight,
+  }
+}
+
+/**
+ * 2 つの GradeWeightSnapshot が（ラベルと 3 つのウェイトで）同一かを判定する。
+ * ウェイト比較は epsilon を考慮する。
+ */
+export function isSameGradeWeights(a: GradeWeightSnapshot, b: GradeWeightSnapshot): boolean {
+  return (
+    a.label === b.label &&
+    Math.abs(a.performanceWeight - b.performanceWeight) < GRADE_WEIGHT_EPSILON &&
+    Math.abs(a.goalWeight - b.goalWeight) < GRADE_WEIGHT_EPSILON &&
+    Math.abs(a.feedbackWeight - b.feedbackWeight) < GRADE_WEIGHT_EPSILON
+  )
+}
 
 /**
  * アプリケーション層で明示的にウェイト合計を検証する。
