@@ -312,6 +312,28 @@ model GradeWeightHistory {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 社員スキル (Requirement 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 社員保有スキル (Requirement 4.4, 4.5)
+/// - マネージャー承認済み / 未承認を区別するため approvedByManagerId / approvedAt を保持
+/// - SkillGapCalculator はこのモデルを読み取って役職要件との差分を計算する（Task 11.1）
+model EmployeeSkill {
+  id                  String    @id @default(cuid())
+  userId              String
+  skillId             String
+  /// 保有スキルレベル 1〜5
+  level               Int
+  acquiredAt          DateTime
+  approvedByManagerId String?
+  approvedAt          DateTime?
+
+  @@unique([userId, skillId])
+  @@index([skillId, level])
+  @@map("employee_skills")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 組織管理 (Requirement 3)
 // ─────────────────────────────────────────────────────────────────────────────
 
