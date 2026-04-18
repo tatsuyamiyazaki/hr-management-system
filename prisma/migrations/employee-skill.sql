@@ -1,14 +1,9 @@
--- 社員スキル管理テーブル (Requirement 4)
--- Issue #35: 共有 SkillGapCalculator のためのスキーマ（Task 11.1）
+-- 社員スキルテーブル (Requirement 4.4, 4.5)
+-- Issue #36 / Task 11.2: 社員スキル登録とマネージャー承認
 --
--- 社員が保有するスキルを表現する。
--- - (userId, skillId) の一意制約で「同一社員が同一スキルを複数持てない」ことを保証
--- - (skillId, level) の複合インデックスで「このスキルを level 以上で保有する人」の検索を高速化
--- - マネージャー承認ワークフロー（Task 11.2）のため approvedByManagerId / approvedAt を保持
---
--- SkillGapCalculator は DB 非依存の純関数として実装する（Task 11.1）。
--- 呼び出し元（CareerService / SkillAnalytics）がこのテーブルから取得した行を
--- EmployeeSkill 型に変換して渡す想定。
+-- - level は 1〜5 (アプリ層で検証)
+-- - approvedByManagerId / approvedAt が NULL なら「承認待ち」、値があれば「承認済み」
+-- - (userId, skillId) で一意制約 (1 ユーザー・1 スキル)
 
 CREATE TABLE IF NOT EXISTS employee_skills (
   id                    TEXT         NOT NULL PRIMARY KEY,
@@ -19,8 +14,12 @@ CREATE TABLE IF NOT EXISTS employee_skills (
   "acquiredAt"          TIMESTAMP(3) NOT NULL,
   "approvedByManagerId" TEXT,
   "approvedAt"          TIMESTAMP(3),
-  CONSTRAINT employee_skills_user_id_skill_id_key UNIQUE ("userId", "skillId")
+  "createdAt"           TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"           TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT employee_skills_user_skill_unique UNIQUE ("userId", "skillId")
 );
 
-CREATE INDEX IF NOT EXISTS employee_skills_skill_id_level_idx
+CREATE INDEX IF NOT EXISTS employee_skills_skill_level_idx
   ON employee_skills ("skillId", level);
+CREATE INDEX IF NOT EXISTS employee_skills_user_idx
+  ON employee_skills ("userId");
