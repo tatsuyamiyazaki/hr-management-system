@@ -9,6 +9,7 @@ import {
   parseSkillCsv,
   type MasterResource,
 } from '@/lib/master/master-csv'
+import { parseEmployeeCsv } from '@/lib/lifecycle/employee-csv'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ジョブプロセッサ（テスト可能な純粋関数として分離）
@@ -32,7 +33,7 @@ export async function processImportJob(job: Job): Promise<ImportResult> {
   if (payload.type === 'MasterCsv') {
     return processMasterCsv(payload.resource, csvContent)
   }
-  return processEmployeeCsv()
+  return processEmployeeCsv(csvContent)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,9 +84,24 @@ function buildResourceError(resource: string): ImportResult {
   return { totalRows: 1, successCount: 0, failureCount: 1, errors: [err] }
 }
 
-function processEmployeeCsv(): ImportResult {
-  // 後続タスクで実装予定
-  return { totalRows: 0, successCount: 0, failureCount: 0, errors: [] }
+/**
+ * Issue #29: EmployeeCsv バリアントの実処理。
+ * CSV をパースして ImportRowError[] に集約する。
+ * 実際の DB 書き込みは LifecycleService (API 層) が担う。
+ */
+function processEmployeeCsv(csvContent: string): ImportResult {
+  if (csvContent.length === 0) {
+    return { totalRows: 0, successCount: 0, failureCount: 0, errors: [] }
+  }
+  const { rows, errors } = parseEmployeeCsv(csvContent)
+  const successCount = rows.length
+  const failureCount = errors.length
+  return {
+    totalRows: successCount + failureCount,
+    successCount,
+    failureCount,
+    errors,
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
