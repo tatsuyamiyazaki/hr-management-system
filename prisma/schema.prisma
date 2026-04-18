@@ -283,14 +283,20 @@ model RoleSkillRequirement {
 /// 等級マスタ (Requirement 2.3)
 /// w1+w2+w3 = 1 はアプリ層で検証
 model GradeMaster {
+<<<<<<< HEAD
   id                String               @id @default(cuid())
   label             String               @unique
+=======
+  id                String @id @default(cuid())
+  label             String @unique
+>>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691
   /// 業績評価ウェイト (w1)
   performanceWeight Float
   /// 目標評価ウェイト (w2)
   goalWeight        Float
   /// 360度評価ウェイト (w3)
   feedbackWeight    Float
+<<<<<<< HEAD
   weightHistory     GradeWeightHistory[]
 
   @@map("grade_masters")
@@ -310,3 +316,8 @@ model GradeWeightHistory {
   @@index([gradeId])
   @@map("grade_weight_histories")
 }
+=======
+
+  @@map("grade_masters")
+}
+>>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691

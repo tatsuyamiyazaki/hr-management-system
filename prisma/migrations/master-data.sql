@@ -1,6 +1,9 @@
 -- マスタ管理テーブル (Requirement 2)
 -- Issue #24: スキル・役職・等級マスタの CRUD
+<<<<<<< HEAD
 -- Issue #25: マスタ変更の監査ログ連携
+=======
+>>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691
 
 -- スキルマスタ (Requirement 2.1, 2.4)
 CREATE TABLE IF NOT EXISTS skill_masters (
@@ -45,6 +48,7 @@ CREATE TABLE IF NOT EXISTS grade_masters (
   "goalWeight"        DOUBLE PRECISION NOT NULL,
   "feedbackWeight"    DOUBLE PRECISION NOT NULL
 );
+<<<<<<< HEAD
 
 -- 等級ウェイト変更履歴 (Requirement 2.6)
 CREATE TABLE IF NOT EXISTS grade_weight_histories (
@@ -59,3 +63,5 @@ CREATE TABLE IF NOT EXISTS grade_weight_histories (
 );
 
 CREATE INDEX IF NOT EXISTS grade_weight_histories_grade_id_idx ON grade_weight_histories ("gradeId");
+=======
+>>>>>>> d0a9ccabe5005090ea6ee73e6e016f1360c76691
