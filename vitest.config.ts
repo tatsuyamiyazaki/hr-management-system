@@ -20,6 +20,11 @@ export default defineConfig({
       },
     },
   },
+  // Next.js は JSX の自動ランタイムを想定しているため、
+  // vitest の esbuild 変換にも同じ設定を与えて React 参照が不要な形でビルドする。
+  esbuild: {
+    jsx: 'automatic',
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
