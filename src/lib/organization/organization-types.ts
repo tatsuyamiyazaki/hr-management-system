@@ -149,6 +149,18 @@ export type ChangePositionInput = z.infer<typeof changePositionInputSchema>
  * - Department ツリー: parentId 辿りで自己に戻った場合
  * - Position の supervisor: supervisorPositionId 辿りで自己に戻った場合
  */
+/** UI ツリー操作（org-tree-ops）で発生するエラー */
+export type OrgChangeErrorCode = 'CYCLE_DETECTED' | 'SAME_PARENT' | 'NODE_NOT_FOUND'
+
+export class OrgChangeError extends Error {
+  public readonly code: OrgChangeErrorCode
+  constructor(code: OrgChangeErrorCode, message: string) {
+    super(message)
+    this.name = 'OrgChangeError'
+    this.code = code
+  }
+}
+
 export class CyclicReferenceError extends Error {
   public readonly kind: 'department' | 'position'
   public readonly path: readonly string[]
