@@ -44,20 +44,15 @@ class InMemoryProfileRepository implements ProfileRepository {
     const existing = this.store.get(userId)
     if (!existing) return
 
-    const updated: ProfileRecord = {
-      ...existing,
-      ...(input.firstName !== undefined && { firstName: input.firstName }),
-      ...(input.lastName !== undefined && { lastName: input.lastName }),
-      ...(input.firstNameKana !== undefined && { firstNameKana: input.firstNameKana }),
-      ...(input.lastNameKana !== undefined && { lastNameKana: input.lastNameKana }),
-      ...(input.phoneNumber !== undefined && { phoneNumber: input.phoneNumber }),
-      ...(input.avatarUrl !== undefined && { avatarUrl: input.avatarUrl }),
-      ...(input.selfIntro !== undefined && { selfIntro: input.selfIntro }),
-      ...(input.locale !== undefined && { locale: input.locale }),
-      ...(input.timezone !== undefined && { timezone: input.timezone }),
-      updatedAt: new Date(),
+    const mutable: Record<string, unknown> = { ...existing }
+    for (const [key, value] of Object.entries(input)) {
+      if (value !== undefined) {
+        mutable[key] = value
+      }
     }
-    this.store.set(userId, updated)
+    mutable['updatedAt'] = new Date()
+
+    this.store.set(userId, mutable as ProfileRecord)
   }
 }
 

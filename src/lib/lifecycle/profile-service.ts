@@ -44,8 +44,8 @@ export interface ProfileService {
 
   /**
    * 自分のプロフィールを編集する（Req 14.5）。
-   * - viewerId と targetUserId が一致しない場合は ProfileForbiddenError
    * - 対象プロフィールが存在しない場合は ProfileNotFoundError
+   * - 呼び出し側（API / middleware）で userId が本人であることを検証すること
    */
   editProfile(userId: string, input: ProfileInput): Promise<void>
 }
