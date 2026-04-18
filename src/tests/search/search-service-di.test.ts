@@ -9,10 +9,10 @@ import {
   initSearchService,
 } from '@/lib/search/search-service-di'
 import type { SearchService } from '@/lib/search/search-service'
-import type { EmployeeSearchResult } from '@/lib/search/search-types'
+import { ok } from '@/lib/shared/domain-error'
 
 const mockService: SearchService = {
-  queryEmployees: async () => [] as EmployeeSearchResult[],
+  queryEmployees: async () => ok([]),
 }
 
 describe('search-service-di', () => {

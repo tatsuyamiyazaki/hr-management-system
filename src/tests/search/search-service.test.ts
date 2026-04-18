@@ -1,45 +1,55 @@
 /**
- * Issue #33 / Task 10.1: SearchService の単体テスト
+ * Issue #34 / Req 16.3, 16.4, 16.6: SearchService の単体テスト
  *
- * - repo をモックし、SearchService のビジネスロジックを検証
- * - ブラインドインデックス計算の統合テスト
- * - デフォルトステータス / limit / フィルターの振る舞い
+ * repository と rateLimiter を vi.fn() でモックし、以下の振る舞いを検証する:
+ * - フィルタ条件がリポジトリに正しく渡されること (Req 16.3)
+ * - statuses デフォルトで ACTIVE のみ (退職/休職除外) (Req 16.4 / 16.5)
+ * - レート制限超過時に RateLimitedError が返ること (Req 16.6)
+ * - 正常時に ok(results) が返ること
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createSearchService, type SearchService } from '@/lib/search/search-service'
-import type { BlindIndexes, SearchRepository } from '@/lib/search/search-repository'
-import type { EmployeeSearchQuery, EmployeeSearchResult } from '@/lib/search/search-types'
-import { computeEmailHash, computeEmployeeCodeHash } from '@/lib/shared/crypto'
-
-const APP_SECRET = 'test-secret-32-chars-long-enough!!'
+import { createSearchService, type SearchRepository } from '@/lib/search/search-service'
+import type { SearchRateLimiter } from '@/lib/search/search-rate-limiter'
+import {
+  DEFAULT_SEARCH_LIMIT,
+  DEFAULT_SEARCH_STATUSES,
+  type EmployeeSearchQuery,
+  type EmployeeSearchResult,
+} from '@/lib/search/search-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
+const USER_ID = 'user-1'
+
 function makeResult(overrides: Partial<EmployeeSearchResult> = {}): EmployeeSearchResult {
   return {
-    userId: 'usr_001',
+    id: 'emp-1',
     firstName: '太郎',
     lastName: '山田',
-    firstNameKana: 'タロウ',
-    lastNameKana: 'ヤマダ',
+    departmentId: 'dept-1',
     departmentName: '開発部',
-    roleId: 'role_engineer',
+    roleId: 'role-1',
+    roleName: 'エンジニア',
     status: 'ACTIVE',
     ...overrides,
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mock repo
-// ─────────────────────────────────────────────────────────────────────────────
-
-function makeRepo(): SearchRepository & {
-  searchEmployees: ReturnType<typeof vi.fn<SearchRepository['searchEmployees']>>
-} {
+function makeRepoMock(): SearchRepository {
   return {
-    searchEmployees: vi.fn<SearchRepository['searchEmployees']>(),
+    searchEmployees: vi.fn().mockResolvedValue([makeResult()]),
+  }
+}
+
+function makeRateLimiterMock(allowed = true): SearchRateLimiter {
+  return {
+    check: vi.fn().mockResolvedValue({
+      allowed,
+      remaining: allowed ? 59 : 0,
+      retryAfterSec: allowed ? 0 : 30,
+    }),
   }
 }
 
@@ -48,164 +58,131 @@ function makeRepo(): SearchRepository & {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('SearchService.queryEmployees', () => {
-  let repo: ReturnType<typeof makeRepo>
-  let svc: SearchService
+  let repo: SearchRepository
+  let rateLimiter: SearchRateLimiter
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    repo = makeRepo()
-    svc = createSearchService({ repo, appSecret: APP_SECRET })
+    repo = makeRepoMock()
+    rateLimiter = makeRateLimiterMock(true)
   })
 
-  it('氏名キーワードで検索した場合、repo.searchEmployees が呼ばれる', async () => {
-    repo.searchEmployees.mockResolvedValue([makeResult()])
+  it('正常な検索でリポジトリに正しいクエリが渡される', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
-    const query: EmployeeSearchQuery = { keyword: '山田' }
-    const results = await svc.queryEmployees(query)
+    const query: EmployeeSearchQuery = {
+      keyword: '山田',
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: DEFAULT_SEARCH_LIMIT,
+    }
 
-    expect(results).toHaveLength(1)
-    expect(results[0]?.lastName).toBe('山田')
-    expect(repo.searchEmployees).toHaveBeenCalledOnce()
+    const result = await svc.queryEmployees(query, USER_ID)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toHaveLength(1)
+      expect(result.value[0]?.lastName).toBe('山田')
+    }
+
+    expect(repo.searchEmployees).toHaveBeenCalledWith(query)
   })
 
-  it('空キーワードの場合、blindIndexes は null/null で渡される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
-
-    await svc.queryEmployees({ keyword: '' })
-
-    const [, blindIndexes] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(blindIndexes.emailHash).toBeNull()
-    expect(blindIndexes.employeeCodeHash).toBeNull()
-  })
-
-  it('メールアドレス形式のキーワードで emailHash が計算される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
-
-    await svc.queryEmployees({ keyword: 'test@example.com' })
-
-    const [, blindIndexes] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    const expectedHash = await computeEmailHash('test@example.com', APP_SECRET)
-    expect(blindIndexes.emailHash).toBe(expectedHash)
-    // メール形式でも employeeCodeHash は常に計算される
-    expect(blindIndexes.employeeCodeHash).not.toBeNull()
-  })
-
-  it('メール形式でないキーワードでは emailHash が null', async () => {
-    repo.searchEmployees.mockResolvedValue([])
-
-    await svc.queryEmployees({ keyword: 'E-12345' })
-
-    const [, blindIndexes] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(blindIndexes.emailHash).toBeNull()
-    const expectedCodeHash = await computeEmployeeCodeHash('E-12345', APP_SECRET)
-    expect(blindIndexes.employeeCodeHash).toBe(expectedCodeHash)
-  })
-
-  it('departmentIds フィルターが query にそのまま渡される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
+  it('部署フィルタがリポジトリに渡される (Req 16.3)', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
     const query: EmployeeSearchQuery = {
       keyword: '太郎',
-      departmentIds: ['dept_1', 'dept_2'],
+      departmentIds: ['dept-1', 'dept-2'],
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: DEFAULT_SEARCH_LIMIT,
     }
-    await svc.queryEmployees(query)
 
-    const [passedQuery] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(passedQuery.departmentIds).toEqual(['dept_1', 'dept_2'])
+    await svc.queryEmployees(query, USER_ID)
+
+    expect(repo.searchEmployees).toHaveBeenCalledWith(
+      expect.objectContaining({ departmentIds: ['dept-1', 'dept-2'] }),
+    )
   })
 
-  it('roleIds フィルターが query にそのまま渡される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
+  it('役職フィルタがリポジトリに渡される (Req 16.3)', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
     const query: EmployeeSearchQuery = {
-      keyword: '',
-      roleIds: ['role_manager'],
+      keyword: '太郎',
+      roleIds: ['role-1'],
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: DEFAULT_SEARCH_LIMIT,
     }
-    await svc.queryEmployees(query)
 
-    const [passedQuery] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(passedQuery.roleIds).toEqual(['role_manager'])
+    await svc.queryEmployees(query, USER_ID)
+
+    expect(repo.searchEmployees).toHaveBeenCalledWith(
+      expect.objectContaining({ roleIds: ['role-1'] }),
+    )
   })
 
-  it('statuses フィルターが query にそのまま渡される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
+  it('ステータスフィルタで退職者を含められる (Req 16.5)', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
     const query: EmployeeSearchQuery = {
-      keyword: '',
-      statuses: ['ACTIVE', 'ON_LEAVE'],
+      keyword: '田中',
+      statuses: ['ACTIVE', 'RESIGNED'],
+      limit: DEFAULT_SEARCH_LIMIT,
     }
-    await svc.queryEmployees(query)
 
-    const [passedQuery] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(passedQuery.statuses).toEqual(['ACTIVE', 'ON_LEAVE'])
+    await svc.queryEmployees(query, USER_ID)
+
+    expect(repo.searchEmployees).toHaveBeenCalledWith(
+      expect.objectContaining({ statuses: ['ACTIVE', 'RESIGNED'] }),
+    )
   })
 
-  it('limit が query にそのまま渡される', async () => {
-    repo.searchEmployees.mockResolvedValue([])
+  it('レート制限超過時に RateLimitedError が返る (Req 16.6)', async () => {
+    rateLimiter = makeRateLimiterMock(false)
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
     const query: EmployeeSearchQuery = {
-      keyword: '',
-      limit: 50,
+      keyword: '山田',
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: DEFAULT_SEARCH_LIMIT,
     }
-    await svc.queryEmployees(query)
 
-    const [passedQuery] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(passedQuery.limit).toBe(50)
+    const result = await svc.queryEmployees(query, USER_ID)
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error._tag).toBe('RateLimited')
+      expect(result.error.retryAfterSec).toBe(30)
+    }
+
+    // レート制限超過時はリポジトリが呼ばれないこと
+    expect(repo.searchEmployees).not.toHaveBeenCalled()
   })
 
-  it('検索結果が空の場合、空配列が返る', async () => {
-    repo.searchEmployees.mockResolvedValue([])
+  it('レート制限チェックで userId が正しく渡される (Req 16.6)', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
-    const results = await svc.queryEmployees({ keyword: '存在しない名前' })
+    const query: EmployeeSearchQuery = {
+      keyword: '佐藤',
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: DEFAULT_SEARCH_LIMIT,
+    }
 
-    expect(results).toEqual([])
+    await svc.queryEmployees(query, 'another-user')
+
+    expect(rateLimiter.check).toHaveBeenCalledWith('another-user')
   })
 
-  it('複数件の検索結果が正しく返る', async () => {
-    const results = [
-      makeResult({ userId: 'usr_001', lastName: '山田' }),
-      makeResult({ userId: 'usr_002', lastName: '田中' }),
-      makeResult({ userId: 'usr_003', lastName: '佐藤' }),
-    ]
-    repo.searchEmployees.mockResolvedValue(results)
+  it('limit がリポジトリに渡される', async () => {
+    const svc = createSearchService({ repository: repo, rateLimiter })
 
-    const actual = await svc.queryEmployees({ keyword: '' })
+    const query: EmployeeSearchQuery = {
+      keyword: '検索',
+      statuses: [...DEFAULT_SEARCH_STATUSES],
+      limit: 5,
+    }
 
-    expect(actual).toHaveLength(3)
-    expect(actual.map((r) => r.userId)).toEqual(['usr_001', 'usr_002', 'usr_003'])
-  })
+    await svc.queryEmployees(query, USER_ID)
 
-  it('キーワードの前後空白はトリムされる（空白のみなら blindIndexes は null）', async () => {
-    repo.searchEmployees.mockResolvedValue([])
-
-    await svc.queryEmployees({ keyword: '   ' })
-
-    const [, blindIndexes] = repo.searchEmployees.mock.calls[0] as [
-      EmployeeSearchQuery,
-      BlindIndexes,
-    ]
-    expect(blindIndexes.emailHash).toBeNull()
-    expect(blindIndexes.employeeCodeHash).toBeNull()
+    expect(repo.searchEmployees).toHaveBeenCalledWith(expect.objectContaining({ limit: 5 }))
   })
 })

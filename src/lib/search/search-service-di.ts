@@ -1,6 +1,6 @@
 /**
- * Issue #33: SearchService のシングルトン DI モジュール。
- * master-service-di.ts / organization-service-di.ts と同一パターン。
+ * Issue #34: SearchService のシングルトン DI モジュール。
+ * master-service-di.ts / lifecycle-service-di.ts と同一パターン。
  */
 import type { SearchService } from './search-service'
 

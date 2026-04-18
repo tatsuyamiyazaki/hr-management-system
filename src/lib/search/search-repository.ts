@@ -1,8 +1,8 @@
 /**
- * Issue #33 / Req 16.1, 16.2, 16.5: 社員検索リポジトリ
+ * Issue #33 / Req 16.1, 16.2, 16.5: 社員検索リポジトリ Prisma 実装
  *
- * - SearchRepository: narrow port（検索専用 read-only）
  * - PrismaSearchRepository: PostgreSQL pg_trgm + tsvector + GIN による実装
+ * - SearchRepository インターフェースは search-service.ts で定義済み
  *
  * 検索対象:
  *   - 氏名（firstName / lastName / firstNameKana / lastNameKana）: pg_trgm 部分一致
@@ -12,36 +12,9 @@
  *   - 役職 roleId: 完全一致
  */
 import type { PrismaClient } from '@prisma/client'
-import {
-  DEFAULT_SEARCH_LIMIT,
-  MAX_SEARCH_LIMIT,
-  type EmployeeSearchQuery,
-  type EmployeeSearchResult,
-  type EmployeeStatus,
-} from './search-types'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Repository interface
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SearchRepository {
-  /**
-   * キーワード + フィルターで社員を検索する。
-   *
-   * @param query - 検索条件
-   * @param blindIndexes - ブラインドインデックス（emailHash / employeeCodeHash）
-   */
-  searchEmployees(
-    query: EmployeeSearchQuery,
-    blindIndexes: BlindIndexes,
-  ): Promise<EmployeeSearchResult[]>
-}
-
-/** ブラインドインデックス（呼び出し元で計算済み） */
-export interface BlindIndexes {
-  readonly emailHash: string | null
-  readonly employeeCodeHash: string | null
-}
+import { computeEmailHash, computeEmployeeCodeHash } from '@/lib/shared/crypto'
+import type { SearchRepository } from './search-service'
+import type { EmployeeSearchQuery, EmployeeSearchResult, EmployeeStatus } from './search-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prisma implementation
@@ -51,32 +24,31 @@ interface RawSearchRow {
   user_id: string
   first_name: string
   last_name: string
-  first_name_kana: string | null
-  last_name_kana: string | null
+  department_id: string | null
   department_name: string | null
   role_id: string | null
+  role_name: string | null
   status: string
 }
 
 export class PrismaSearchRepository implements SearchRepository {
-  constructor(private readonly db: PrismaClient) {}
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly appSecret: string,
+  ) {}
 
-  async searchEmployees(
-    query: EmployeeSearchQuery,
-    blindIndexes: BlindIndexes,
-  ): Promise<EmployeeSearchResult[]> {
-    const statuses: readonly EmployeeStatus[] = query.statuses?.length
-      ? query.statuses
-      : ['ACTIVE']
-    const limit = Math.min(Math.max(query.limit ?? DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT)
+  async searchEmployees(query: EmployeeSearchQuery): Promise<EmployeeSearchResult[]> {
     const keyword = query.keyword.trim()
+
+    // ブラインドインデックスを内部で計算
+    const blindIndexes = await this.computeBlindIndexes(keyword)
 
     // パラメータリスト（$1〜$N で順番管理）
     const params: unknown[] = []
     const conditions: string[] = []
 
     // ── ステータスフィルタ（必須）──────────────────────────────────────────
-    params.push(statuses as string[])
+    params.push(query.statuses as string[])
     conditions.push(`u.status = ANY($${params.length}::text[])`)
 
     // ── 部署フィルタ ────────────────────────────────────────────────────────
@@ -122,25 +94,26 @@ export class PrismaSearchRepository implements SearchRepository {
     }
 
     // ── LIMIT ──────────────────────────────────────────────────────────────
-    params.push(limit)
+    params.push(query.limit)
     const limitParam = `$${params.length}`
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const sql = `
       SELECT
-        prof.user_id   AS user_id,
-        prof.first_name AS first_name,
-        prof.last_name  AS last_name,
-        prof.first_name_kana AS first_name_kana,
-        prof.last_name_kana  AS last_name_kana,
-        dept.name       AS department_name,
-        p_pos.role_id   AS role_id,
-        u.status        AS status
+        prof.user_id        AS user_id,
+        prof.first_name     AS first_name,
+        prof.last_name      AS last_name,
+        p_pos.department_id AS department_id,
+        dept.name           AS department_name,
+        p_pos.role_id       AS role_id,
+        rm.name             AS role_name,
+        u.status            AS status
       FROM profiles prof
       INNER JOIN users u ON u.id = prof.user_id
       LEFT JOIN positions p_pos ON u.position_id = p_pos.id
       LEFT JOIN departments dept ON p_pos.department_id = dept.id
+      LEFT JOIN role_masters rm ON p_pos.role_id = rm.id
       ${whereClause}
       ORDER BY prof.last_name ASC, prof.first_name ASC
       LIMIT ${limitParam}
@@ -155,6 +128,29 @@ export class PrismaSearchRepository implements SearchRepository {
     )
 
     return rows.map(mapRow)
+  }
+
+  /**
+   * keyword からブラインドインデックスを算出する。
+   *
+   * - メールアドレスらしい形式 → emailHash を計算
+   * - それ以外 → employeeCodeHash のみ計算（社員番号完全一致用）
+   */
+  private async computeBlindIndexes(
+    keyword: string,
+  ): Promise<{ emailHash: string | null; employeeCodeHash: string | null }> {
+    if (keyword.length === 0) {
+      return { emailHash: null, employeeCodeHash: null }
+    }
+
+    // メールアドレス判定（簡易: user@domain.tld 形式）
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(keyword)
+    const emailHash = looksLikeEmail
+      ? await computeEmailHash(keyword, this.appSecret)
+      : null
+    const employeeCodeHash = await computeEmployeeCodeHash(keyword, this.appSecret)
+
+    return { emailHash, employeeCodeHash }
   }
 }
 
@@ -174,13 +170,13 @@ function escapeLike(value: string): string {
 
 function mapRow(row: RawSearchRow): EmployeeSearchResult {
   return {
-    userId: row.user_id,
+    id: row.user_id,
     firstName: row.first_name,
     lastName: row.last_name,
-    firstNameKana: row.first_name_kana,
-    lastNameKana: row.last_name_kana,
-    departmentName: row.department_name,
-    roleId: row.role_id,
+    departmentId: row.department_id ?? '',
+    departmentName: row.department_name ?? '',
+    roleId: row.role_id ?? '',
+    roleName: row.role_name ?? '',
     status: row.status as EmployeeStatus,
   }
 }
