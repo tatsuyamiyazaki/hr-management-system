@@ -356,3 +356,26 @@ model TransferRecord {
   @@index([userId, effectiveDate])
   @@map("transfer_records")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// スキル取得記録 (Requirement 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 社員のスキル取得レコード (Requirement 4.1, 4.2, 4.3)
+/// - level: 1〜5 の取得レベル
+/// - approvedByManagerId / approvedAt: マネージャ承認情報（null = 未承認）
+model EmployeeSkill {
+  id                  String    @id @default(cuid())
+  userId              String
+  skillId             String
+  /// 取得スキルレベル 1〜5
+  level               Int
+  acquiredAt          DateTime  @default(now())
+  approvedByManagerId String?
+  approvedAt          DateTime?
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+  @@map("employee_skills")
+}
