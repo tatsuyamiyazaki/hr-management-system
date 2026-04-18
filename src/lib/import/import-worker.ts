@@ -1,7 +1,14 @@
 import { type Job } from 'bullmq'
 import { isImportRequest } from './import-types'
-import type { ImportResult } from './import-types'
+import type { ImportResult, ImportRowError } from './import-types'
 import { createBaseWorker } from '@/lib/jobs/base-worker'
+import {
+  isMasterResource,
+  parseGradeCsv,
+  parseRoleCsv,
+  parseSkillCsv,
+  type MasterResource,
+} from '@/lib/master/master-csv'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ジョブプロセッサ（テスト可能な純粋関数として分離）
@@ -9,7 +16,9 @@ import { createBaseWorker } from '@/lib/jobs/base-worker'
 
 /**
  * import-csv ジョブを処理し、ImportResult を返す。
- * 実際の CSV パースと DB 書き込みは各ドメインサービスが担当する予定。
+ * ペイロードに付与された csvContent（任意フィールド）をパースし、バリデーション結果を返す。
+ * 実際の DB 書き込みは MasterRepository（後続タスクで結合）に委譲する前提の
+ * スタブ実装。ここでは successCount = 有効行数 を返す。
  */
 export async function processImportJob(job: Job): Promise<ImportResult> {
   const payload = job.data as unknown
@@ -18,21 +27,79 @@ export async function processImportJob(job: Job): Promise<ImportResult> {
     throw new Error(`ImportWorker: invalid payload for job "${job.id ?? 'unknown'}"`)
   }
 
-  return processVariant(payload.type)
+  const csvContent = extractCsvContent(job.data)
+
+  if (payload.type === 'MasterCsv') {
+    return processMasterCsv(payload.resource, csvContent)
+  }
+  return processEmployeeCsv()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// バリアント別処理（スタブ実装）
-// 実際のデータ取得・バリデーションは各ドメインサービスが担当する予定
+// バリアント別処理
 // ─────────────────────────────────────────────────────────────────────────────
 
-function processVariant(type: 'MasterCsv' | 'EmployeeCsv'): ImportResult {
-  switch (type) {
-    case 'MasterCsv':
-      return { totalRows: 0, successCount: 0, failureCount: 0, errors: [] }
-    case 'EmployeeCsv':
-      return { totalRows: 0, successCount: 0, failureCount: 0, errors: [] }
+/**
+ * MasterCsv バリアントの実処理。
+ * - resource が未知ならエラーを 1 件返す
+ * - 有効な resource なら CSV をパースしてエラーを ImportRowError[] に集約
+ */
+function processMasterCsv(resource: string, csvContent: string): ImportResult {
+  if (!isMasterResource(resource)) {
+    return buildResourceError(resource)
   }
+
+  const { rows, errors } = parseByResource(resource, csvContent)
+  const successCount = rows.length
+  const failureCount = errors.length
+  return {
+    totalRows: successCount + failureCount,
+    successCount,
+    failureCount,
+    errors,
+  }
+}
+
+function parseByResource(
+  resource: MasterResource,
+  csvContent: string,
+): { rows: unknown[]; errors: ImportRowError[] } {
+  switch (resource) {
+    case 'skill':
+      return parseSkillCsv(csvContent)
+    case 'role':
+      return parseRoleCsv(csvContent)
+    case 'grade':
+      return parseGradeCsv(csvContent)
+  }
+}
+
+function buildResourceError(resource: string): ImportResult {
+  const err: ImportRowError = {
+    rowNumber: 1,
+    field: 'resource',
+    message: `未対応のマスタリソースです: "${resource}"`,
+  }
+  return { totalRows: 1, successCount: 0, failureCount: 1, errors: [err] }
+}
+
+function processEmployeeCsv(): ImportResult {
+  // 後続タスクで実装予定
+  return { totalRows: 0, successCount: 0, failureCount: 0, errors: [] }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// payload ヘルパ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * ジョブペイロードに付与された csvContent（ImportRequest スキーマ外の任意フィールド）を
+ * 安全に取り出す。BullMQ は余剰フィールドを保持するため、API 層で含めて enqueue する。
+ */
+function extractCsvContent(data: unknown): string {
+  if (typeof data !== 'object' || data === null) return ''
+  const obj = data as Record<string, unknown>
+  return typeof obj.csvContent === 'string' ? obj.csvContent : ''
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
