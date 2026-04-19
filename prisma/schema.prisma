@@ -113,9 +113,11 @@ model User {
   oneOnOneLogs         OneOnOneLog[]     @relation("OneOnOneLogRecorder")
   goalAchievements     GoalAchievement[]
   createdReviewCycles  ReviewCycle[]     @relation("ReviewCycleCreator")
-  evaluatorAssignments ReviewAssignment[] @relation("ReviewAssignmentEvaluator")
-  targetAssignments    ReviewAssignment[] @relation("ReviewAssignmentTarget")
-  replacementDeclines  ReviewDecline[]    @relation("ReviewDeclineReplacement")
+  evaluatorAssignments        ReviewAssignment[]   @relation("ReviewAssignmentEvaluator")
+  targetAssignments           ReviewAssignment[]   @relation("ReviewAssignmentTarget")
+  replacementDeclines         ReviewDecline[]      @relation("ReviewDeclineReplacement")
+  evaluationResponsesGiven    EvaluationResponse[] @relation("EvaluationResponseEvaluator")
+  evaluationResponsesReceived EvaluationResponse[] @relation("EvaluationResponseTarget")
 
   @@index([emailHash])
   @@index([status])
@@ -637,8 +639,9 @@ model ReviewCycle {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
-  creator     User               @relation("ReviewCycleCreator", fields: [createdBy], references: [id])
+  creator     User                 @relation("ReviewCycleCreator", fields: [createdBy], references: [id])
   assignments ReviewAssignment[]
+  responses   EvaluationResponse[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -689,4 +692,37 @@ model ReviewDecline {
   replacementEvaluator User?            @relation("ReviewDeclineReplacement", fields: [replacementEvaluatorId], references: [id])
 
   @@map("review_declines")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 評価入力 (Requirement 8.5, 8.6, 8.7, 8.17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum EvaluationResponseType {
+  SELF       // 自己評価
+  TOP_DOWN   // 上司評価
+  PEER       // ピア評価
+}
+
+/// 評価回答 (Requirement 8.5, 8.6, 8.7)
+/// 自己評価・上司評価・ピア評価をすべてこのモデルで管理
+model EvaluationResponse {
+  id           String                 @id @default(cuid())
+  cycleId      String
+  evaluatorId  String                 // 評価者（SELFの場合は自分自身）
+  targetUserId String                 // 評価対象者
+  responseType EvaluationResponseType
+  score        Int                    // 0-100（80点基準）
+  comment      String?
+  submittedAt  DateTime               @default(now())
+  isDraft      Boolean                @default(true)  // true=下書き, false=送信済み
+
+  cycle     ReviewCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  evaluator User        @relation("EvaluationResponseEvaluator", fields: [evaluatorId], references: [id])
+  target    User        @relation("EvaluationResponseTarget",    fields: [targetUserId], references: [id])
+
+  @@unique([cycleId, evaluatorId, targetUserId, responseType])
+  @@index([cycleId, evaluatorId])
+  @@index([cycleId, targetUserId])
+  @@map("evaluation_responses")
 }
