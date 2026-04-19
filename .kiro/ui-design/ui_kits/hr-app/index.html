@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Sunbit HR — UI Kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-jp);font-size:var(--fs-base)}
+.app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
+
+/* Sidebar */
+.sb{background:#fff;border-right:1px solid var(--border);padding:16px 12px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sb-logo{display:flex;align-items:center;gap:10px;padding:10px 8px 18px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.sb-section{font-size:10px;color:var(--foreground-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;padding:12px 10px 6px}
+.nav a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius-md);font-size:13px;color:var(--sb-slate-700);text-decoration:none;cursor:pointer;font-weight:500}
+.nav a:hover{background:var(--sb-slate-100)}
+.nav a.active{background:var(--sb-navy-50);color:var(--sb-navy-700)}
+.nav a.active i{color:var(--sb-navy-700)}
+.nav i{width:16px;height:16px;color:var(--sb-slate-500)}
+.nav .bdg{margin-left:auto;background:var(--sb-danger-500);color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:var(--radius-pill);font-family:var(--font-sans)}
+
+/* Header */
+.main{display:flex;flex-direction:column;min-width:0}
+.hdr{height:var(--header-h);background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:10}
+.crumb{font-size:13px;color:var(--foreground-muted);display:flex;align-items:center;gap:6px}
+.crumb b{color:var(--foreground);font-weight:600}
+.search{flex:1;max-width:360px;margin-left:auto;position:relative}
+.search input{width:100%;font-size:13px;padding:7px 12px 7px 32px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--sb-slate-50);outline:none;font-family:var(--font-jp)}
+.search input:focus{background:#fff;border-color:var(--primary);box-shadow:0 0 0 3px rgba(31,44,105,0.15)}
+.search i{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--foreground-muted)}
+.hdr-btns{display:flex;align-items:center;gap:8px}
+.iconbtn{width:32px;height:32px;border-radius:var(--radius-md);border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.iconbtn i{width:15px;height:15px;color:var(--foreground-muted)}
+.iconbtn:hover{background:var(--sb-slate-50)}
+.iconbtn .pd{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--sb-danger-500);border:1.5px solid #fff}
+.me{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border-radius:var(--radius-pill);border:1px solid var(--border);background:#fff;cursor:pointer}
+.me .av{width:24px;height:24px;border-radius:50%;background:var(--sb-navy-600);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:var(--font-sans)}
+.me .n{font-size:12px;font-weight:500}
+.me .r{font-family:var(--font-mono);font-size:9px;color:var(--foreground-muted);background:var(--sb-slate-100);padding:1px 5px;border-radius:var(--radius-sm)}
+
+/* Body */
+.body{padding:24px;max-width:1440px;width:100%}
+.pgttl{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.pgttl h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-0.01em}
+.pgttl .sub{font-size:13px;color:var(--foreground-muted);margin-top:4px}
+.pgttl .acts{display:flex;gap:8px}
+
+/* Buttons */
+.btn{font-family:var(--font-jp);font-size:13px;font-weight:500;padding:7px 14px;border-radius:var(--radius-md);border:1px solid transparent;cursor:pointer;transition:all var(--dur-fast) var(--ease-out);display:inline-flex;align-items:center;gap:6px;line-height:1.3}
+.btn i{width:14px;height:14px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--sb-navy-700)}
+.btn-sec{background:#fff;color:var(--foreground);border-color:var(--border)}
+.btn-sec:hover{background:var(--sb-slate-50)}
+.btn-ghost{background:transparent;color:var(--foreground)}
+.btn-ghost:hover{background:var(--sb-slate-100)}
+.btn-ai{background:var(--sb-ai-500);color:#fff}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{padding:10px 14px;font-size:13px;font-weight:500;color:var(--foreground-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--foreground)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+
+/* Cards / Grid */
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-1)}
+.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-h h3{margin:0;font-size:15px;font-weight:600}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.grid-2{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+
+/* KPI tile */
+.kpi{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:var(--shadow-1)}
+.kpi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.kpi-k{font-size:12px;color:var(--foreground-muted);font-weight:500}
+.kpi-ic{width:28px;height:28px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center}
+.kpi-ic i{width:14px;height:14px}
+.kpi-v{font-family:var(--font-sans);font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;line-height:1}
+.kpi-ft{margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.kpi-sub{font-size:11px;color:var(--foreground-muted)}
+.delta{font-size:11px;font-weight:600}
+.up{color:var(--sb-success-700)}
+.dn{color:var(--sb-danger-700)}
+
+/* Badges */
+.bd{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:var(--radius-pill);line-height:1.4}
+.bd::before{content:"";width:6px;height:6px;border-radius:50%}
+.bd-pending{background:#FEF3C7;color:var(--sb-warning-700)}
+.bd-pending::before{background:var(--sb-warning-500)}
+.bd-ok{background:var(--sb-success-50);color:var(--sb-success-700)}
+.bd-ok::before{background:var(--sb-success-500)}
+.bd-prog{background:var(--sb-info-50);color:var(--sb-info-700)}
+.bd-prog::before{background:var(--sb-info-500)}
+.bd-ai{background:var(--sb-ai-50);color:var(--sb-ai-700)}
+.bd-ai::before{background:var(--sb-ai-500)}
+.bd-draft{background:var(--sb-slate-100);color:var(--sb-slate-700)}
+.bd-draft::before{background:var(--sb-slate-500)}
+.bd-bad{background:var(--sb-danger-50);color:var(--sb-danger-700)}
+.bd-bad::before{background:var(--sb-danger-500)}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--sb-slate-50)}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;color:var(--foreground-muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border)}
+td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--sb-slate-50)}
+.num{font-variant-numeric:tabular-nums;font-family:var(--font-sans)}
+
+/* Person chip */
+.person{display:flex;align-items:center;gap:8px}
+.person .av{width:28px;height:28px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;font-family:var(--font-sans);flex-shrink:0}
+.person .n{font-size:13px;font-weight:500}
+.person .m{font-size:11px;color:var(--foreground-muted)}
+
+/* Progress */
+.prog{background:var(--sb-slate-100);height:6px;border-radius:3px;overflow:hidden;min-width:120px}
+.prog > div{height:100%;background:var(--primary);border-radius:3px}
+
+/* Chart surrogate */
+.chart{height:180px;background:linear-gradient(180deg,rgba(31,44,105,0.1) 0%,rgba(31,44,105,0) 100%);border-radius:var(--radius-md);position:relative;margin-top:4px}
+.chart svg{width:100%;height:100%}
+.chart-axis{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--foreground-muted);margin-top:6px;padding:0 4px}
+
+/* Heatmap */
+.hm{display:grid;grid-template-columns:120px repeat(6,1fr);gap:3px;font-size:11px}
+.hm .r-lbl{display:flex;align-items:center;padding-right:8px;color:var(--foreground);font-weight:500}
+.hm .cell{height:30px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:500;font-variant-numeric:tabular-nums}
+.hm .hd{background:transparent;color:var(--foreground-muted);font-size:10px;font-weight:600;text-transform:uppercase;text-align:center;padding-bottom:4px}
+
+/* AI chat card */
+.ai-card{border:1px solid var(--sb-ai-500);border-radius:var(--radius-lg);overflow:hidden;background:#fff}
+.ai-hdr{background:linear-gradient(135deg,var(--sb-ai-500),#A78BFA);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+.ai-hdr .t{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.ai-hdr .t i{width:16px;height:16px}
+.ai-hdr .meta{font-size:11px;opacity:0.9}
+.ai-body{padding:16px}
+.msg{display:flex;gap:10px;margin-bottom:12px}
+.msg .av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;flex-shrink:0;font-family:var(--font-sans)}
+.msg .av.ai{background:var(--sb-ai-500)}
+.msg .av.u{background:var(--sb-navy-600)}
+.msg .bubble{font-size:13px;padding:10px 12px;border-radius:10px;line-height:1.55;max-width:80%}
+.msg.ai .bubble{background:var(--sb-ai-50);color:var(--sb-slate-800)}
+.msg.u .bubble{background:var(--sb-slate-100);color:var(--sb-slate-800)}
+.ai-gate{margin-top:8px;padding:10px 14px;background:var(--sb-success-50);border-top:1px solid var(--sb-success-500);color:var(--sb-success-700);font-size:12px;font-weight:500;display:flex;align-items:center;gap:8px}
+.ai-gate i{width:14px;height:14px}
+
+/* Composer */
+.compose{border-top:1px solid var(--border);padding:12px 16px;display:flex;gap:8px;align-items:flex-end}
+.compose textarea{flex:1;font-family:var(--font-jp);font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);outline:none;resize:none;height:44px;background:var(--sb-slate-50)}
+.compose textarea:focus{border-color:var(--primary);background:#fff}
+
+/* Task list */
+.task{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.task:last-child{border-bottom:none}
+.task .cb{width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff}
+.task .cb.done{background:var(--sb-success-500);border-color:var(--sb-success-500);color:#fff;font-size:11px;font-weight:700}
+.task .txt{flex:1;font-size:13px}
+.task .txt small{display:block;color:var(--foreground-muted);font-size:11px;margin-top:2px}
+.task.done .txt{color:var(--foreground-muted);text-decoration:line-through}
+
+/* Activity */
+.act{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.act:last-child{border-bottom:none}
+.act .ic{width:28px;height:28px;border-radius:50%;background:var(--sb-slate-100);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.act .ic i{width:13px;height:13px;color:var(--foreground-muted)}
+.act .c{flex:1;font-size:13px;line-height:1.5}
+.act .c b{font-weight:600}
+.act .c .t{font-size:11px;color:var(--foreground-muted);margin-top:2px}
+
+/* Radar (skill) surrogate */
+.radar{width:100%;max-width:280px;margin:auto;display:block}
+
+/* Colors for avatars */
+.c1{background:#1F2C69}.c2{background:#7C3AED}.c3{background:#16A34A}.c4{background:#2563EB}.c5{background:#DC2626}.c6{background:#475569}.c7{background:#0891B2}.c8{background:#DB2777}
+
+/* Views */
+.view{display:none}
+.view.active{display:block}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--sb-slate-900);color:#fff;padding:10px 16px;border-radius:var(--radius-md);font-size:13px;box-shadow:var(--shadow-3);display:flex;align-items:center;gap:8px;opacity:0;pointer-events:none;transition:opacity 200ms var(--ease-out);z-index:100}
+.toast.show{opacity:1}
+.toast i{width:14px;height:14px;color:var(--sb-success-500)}
+
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:4px 10px;border-radius:var(--radius-pill);background:var(--sb-slate-100);color:var(--sb-slate-700);border:1px solid var(--border);cursor:pointer;white-space:nowrap}
+.chip:hover{background:var(--sb-slate-200)}
+.chip-on{background:var(--sb-navy-700);color:#fff;border-color:var(--sb-navy-700)}
+.chip-on:hover{background:var(--sb-navy-800)}
+.chip-xs{font-size:10px;padding:1px 6px;border-radius:3px;cursor:default}
+
+/* kv table */
+.kv{display:flex;flex-direction:column}
+.kv-r{display:flex;padding:9px 0;border-bottom:1px dashed var(--border);font-size:12px}
+.kv-r:last-child{border-bottom:none}
+.kv-k{flex:0 0 120px;color:var(--foreground-muted)}
+.kv-v{flex:1;color:var(--foreground);font-weight:500}
+
+/* org tree */
+.org-tree{display:flex;flex-direction:column;gap:2px}
+.org-node{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+.org-node:hover{background:var(--sb-slate-50)}
+.org-node svg{width:14px;height:14px;color:var(--foreground-muted);flex-shrink:0}
+.org-node .ic{color:var(--sb-navy-600)}
+.org-node.lvl-0{font-weight:600}
+.org-node.lvl-1{padding-left:24px}
+.org-node.lvl-2{padding-left:46px;font-size:12px}
+.org-node .name{flex:1}
+.org-node .count{font-family:var(--font-mono);font-size:11px;color:var(--foreground-muted);background:var(--sb-slate-100);padding:1px 7px;border-radius:10px}
+
+/* callout inline */
+.callout-inline{display:flex;gap:10px;align-items:flex-start;background:var(--sb-info-50);border:1px solid var(--sb-info-500);color:var(--sb-info-700);padding:10px 12px;border-radius:6px;font-size:12px;line-height:1.6}
+.callout-inline svg{width:14px;height:14px;flex-shrink:0;margin-top:2px}
+
+/* appr item */
+.appr-item{padding:14px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;background:#fff}
+.appr-item:last-child{margin-bottom:0}
+
+/* report tiles */
+.rpt-tile{display:flex;flex-direction:column;gap:4px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;text-align:left;cursor:pointer;transition:all .15s}
+.rpt-tile:hover{border-color:var(--sb-navy-600);background:var(--sb-navy-50)}
+.rpt-tile svg{width:20px;height:20px;color:var(--sb-navy-700);margin-bottom:4px}
+.rpt-tile .t{font-size:13px;font-weight:600}
+.rpt-tile .s{font-size:11px;color:var(--foreground-muted)}
+
+/* bar chart */
+.bar-chart{display:flex;flex-direction:column;gap:12px;padding:8px 0}
+.bar-row{display:flex;align-items:center;gap:12px}
+.bar-lbl{flex:0 0 150px;font-size:12px;color:var(--foreground);font-weight:500}
+.bar-track{flex:1;height:20px;background:var(--sb-slate-100);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.bar-val{flex:0 0 44px;text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:600}
+
+/* appeal item */
+.appeal-item{padding:14px 16px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;background:#fff}
+.appeal-item:last-child{margin-bottom:0}
+.appeal-item h3{font-weight:600;color:var(--foreground)}
+
+/* audit table */
+.audit-tbl td, .audit-tbl th{padding:8px 10px;font-size:12px;vertical-align:top}
+
+/* pager */
+.pager{display:flex;justify-content:space-between;align-items:center;padding:12px 4px 2px;border-top:1px solid var(--border);margin-top:10px}
+.iconbtn[disabled]{opacity:.4;cursor:not-allowed}
+
+/* settings */
+.settings-grid{display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:flex-start}
+.settings-nav{display:flex;flex-direction:column;gap:2px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px}
+.settings-nav a{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;font-size:13px;color:var(--foreground);cursor:pointer}
+.settings-nav a:hover{background:var(--sb-slate-50)}
+.settings-nav a.active{background:var(--sb-navy-50);color:var(--sb-navy-700);font-weight:600}
+.settings-nav a svg{width:14px;height:14px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:14px 0;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none;padding-bottom:4px}
+.setting-l{flex:1}
+.setting-t{font-size:13px;font-weight:600;margin-bottom:2px}
+.setting-s{font-size:11px;color:var(--foreground-muted);line-height:1.5}
+.setting-r{flex-shrink:0}
+.inp{font-family:var(--font-sans);font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--foreground);min-width:200px}
+.inp.num{font-family:var(--font-mono);text-align:right}
+.toggle{position:relative;display:inline-block;width:38px;height:22px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--sb-slate-300);border-radius:22px;transition:.2s}
+.toggle-slider::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle input:checked + .toggle-slider{background:var(--sb-success-500)}
+.toggle input:checked + .toggle-slider::before{transform:translateX(16px)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sb">
+    <div class="sb-logo">
+      <img src="../../assets/logo.png" style="height:22px;width:auto">
+      <span style="font-family:var(--font-jp);font-size:11px;color:var(--foreground-muted);border-left:1px solid var(--border);padding-left:8px;letter-spacing:0.04em">HR</span>
+    </div>
+    <nav class="nav">
+      <div class="sb-section">ワークスペース</div>
+      <a data-view="dashboard" class="active"><i data-lucide="layout-dashboard"></i>ダッシュボード</a>
+      <a data-view="evaluation"><i data-lucide="scan-face"></i>360度評価<span class="bdg">3</span></a>
+      <a data-view="goals"><i data-lucide="target"></i>目標（OKR/MBO）</a>
+      <a data-view="oneonone"><i data-lucide="messages-square"></i>1on1</a>
+      <a data-view="skill"><i data-lucide="sparkles"></i>スキルマップ</a>
+
+      <div class="sb-section">組織</div>
+      <a data-view="org"><i data-lucide="building-2"></i>組織体制</a>
+      <a data-view="skillmgmt"><i data-lucide="compass"></i>スキル管理</a>
+      <a data-view="directory"><i data-lucide="users"></i>社員名簿</a>
+
+      <div class="sb-section">管理</div>
+      <a data-view="reports"><i data-lucide="bar-chart-3"></i>レポート</a>
+      <a data-view="appeals"><i data-lucide="scale"></i>異議申立て<span class="bdg">7</span></a>
+      <a data-view="audit"><i data-lucide="shield-check"></i>監査ログ</a>
+      <a data-view="settings"><i data-lucide="settings"></i>設定</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="hdr">
+      <div class="crumb"><span>ワークスペース</span> / <b id="crumb">ダッシュボード</b></div>
+      <div class="search"><i data-lucide="search"></i><input placeholder="社員を検索（氏名・部署・役職）"></div>
+      <div class="hdr-btns">
+        <button class="iconbtn" title="通知"><i data-lucide="bell"></i><span class="pd"></span></button>
+        <button class="iconbtn" title="ヘルプ"><i data-lucide="help-circle"></i></button>
+        <div class="me"><span class="av">HY</span><span class="n">林 悠子</span><span class="r">HR_MANAGER</span></div>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- DASHBOARD VIEW -->
+      <div class="view active" id="view-dashboard">
+        <div class="pgttl">
+          <div>
+            <h1>ダッシュボード</h1>
+            <div class="sub">2026年度上期 評価サイクル — 進行中（残り 12日）</div>
+          </div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="download"></i>レポート出力</button>
+            <button class="btn btn-primary"><i data-lucide="play"></i>新規サイクル</button>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="kpi">
+            <div class="kpi-top"><div class="kpi-k">評価完了率</div><div class="kpi-ic" style="background:var(--sb-navy-50);color:var(--sb-navy-700)"><i data-lucide="check-circle-2"></i></div></div>
+            <div class="kpi-v">78.4<span style="font-size:14px;color:var(--foreground-muted)">%</span></div>
+            <div class="kpi-ft"><span class="kpi-sub">978 / 1,248名</span><span class="delta up">↑ 12.3pt</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top"><div class="kpi-k">目標達成率</div><div class="kpi-ic" style="background:var(--sb-info-50);color:var(--sb-info-700)"><i data-lucide="target"></i></div></div>
+            <div class="kpi-v">64.2<span style="font-size:14px;color:var(--foreground-muted)">%</span></div>
+            <div class="kpi-ft"><span class="kpi-sub">2026 Q1</span><span class="delta up">↑ 3.1pt</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-top"><div class="kpi-k">未処理 異議申立て</div><div class="kpi-ic" style="background:var(--sb-danger-50);color:var(--sb-danger-700)"><i data-lucide="scale"></i></div></div>
+            <div class="kpi-v">7</div>
+            <div class="kpi-ft"><span class="kpi-sub">うち3件が期限3日以内</span><span class="delta dn">要対応</span></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h"><h3>評価スコア推移（過去3サイクル）</h3><span class="bd bd-ai">AI分析済</span></div>
+            <div class="chart">
+              <svg viewBox="0 0 500 180" preserveAspectRatio="none">
+                <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#1F2C69" stop-opacity="0.3"/><stop offset="100%" stop-color="#1F2C69" stop-opacity="0"/></linearGradient></defs>
+                <polyline fill="url(#g1)" stroke="none" points="0,120 60,110 130,95 210,80 290,72 370,50 440,42 500,30 500,180 0,180"/>
+                <polyline fill="none" stroke="#1F2C69" stroke-width="2.5" points="0,120 60,110 130,95 210,80 290,72 370,50 440,42 500,30"/>
+                <g fill="#1F2C69"><circle cx="60" cy="110" r="3"/><circle cx="210" cy="80" r="3"/><circle cx="370" cy="50" r="3"/></g>
+                <polyline fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="4 3" points="0,135 60,128 130,122 210,108 290,98 370,80 440,70 500,60"/>
+              </svg>
+            </div>
+            <div class="chart-axis"><span>2024下期</span><span>2025上期</span><span>2025下期</span><span>2026上期</span></div>
+            <div style="display:flex;gap:16px;font-size:11px;color:var(--foreground-muted);margin-top:10px">
+              <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:2px;background:#1F2C69"></span>総合評価点</span>
+              <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:2px;background:#7C3AED;border-bottom:1px dashed"></span>360度評価点</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>本日のタスク</h3><a style="font-size:12px;color:var(--primary);cursor:pointer">全て見る</a></div>
+            <div class="task">
+              <div class="cb done">✓</div>
+              <div class="txt">評価サイクル「2026上期」を開始<small>09:14 完了</small></div>
+            </div>
+            <div class="task">
+              <div class="cb"></div>
+              <div class="txt">異議申立て #A-0247 の審査<small>期限：明日 18:00</small></div>
+            </div>
+            <div class="task">
+              <div class="cb"></div>
+              <div class="txt">エンジニアリング部の代替評価者を割当<small>4名が最低評価者数未達</small></div>
+            </div>
+            <div class="task">
+              <div class="cb"></div>
+              <div class="txt">マイルド化プレビューを承認<small>AI変換が12件完了</small></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-h"><h3>最近の組織アクティビティ</h3></div>
+          <div class="act"><div class="ic" style="background:var(--sb-success-50)"><i data-lucide="circle-check-big" style="color:var(--sb-success-700)"></i></div><div class="c"><b>田中 花子</b>がチーム目標「Q2 DAU 20%増」を承認 <div class="t">15分前</div></div></div>
+          <div class="act"><div class="ic" style="background:var(--sb-ai-50)"><i data-lucide="sparkles" style="color:var(--sb-ai-700)"></i></div><div class="c">AIマイルド化変換 <b>12件</b>が完了。HR承認プレビュー待ち <div class="t">47分前</div></div></div>
+          <div class="act"><div class="ic" style="background:var(--sb-warning-50)"><i data-lucide="triangle-alert" style="color:var(--sb-warning-700)"></i></div><div class="c">プロダクト本部の4名が最低評価者数（3名）未達 <div class="t">1時間前</div></div></div>
+          <div class="act"><div class="ic" style="background:var(--sb-info-50)"><i data-lucide="user-plus" style="color:var(--sb-info-700)"></i></div><div class="c">新規社員 <b>3名</b>がCSV一括登録されました <div class="t">2時間前</div></div></div>
+        </div>
+      </div>
+
+      <!-- EVALUATION VIEW -->
+      <div class="view" id="view-evaluation">
+        <div class="pgttl">
+          <div>
+            <h1>360度評価 — 2026年度上期</h1>
+            <div class="sub">評価期間：2026-04-01 〜 2026-04-30（残り12日）・最低評価者数 3名</div>
+          </div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="users"></i>代替評価者を割当</button>
+            <button class="btn btn-primary" id="finalize"><i data-lucide="check"></i>サイクルを確定</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active">全体進捗</div>
+          <div class="tab">評価者別</div>
+          <div class="tab">被評価者別</div>
+          <div class="tab">異議申立て</div>
+        </div>
+
+        <div class="grid-3">
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">提出済み</div><div class="kpi-ic" style="background:var(--sb-success-50);color:var(--sb-success-700)"><i data-lucide="check"></i></div></div><div class="kpi-v">2,847</div><div class="kpi-ft"><span class="kpi-sub">総依頼数 3,628</span><span class="delta up">78.5%</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">最低評価者数未達</div><div class="kpi-ic" style="background:var(--sb-warning-50);color:var(--sb-warning-700)"><i data-lucide="alert-triangle"></i></div></div><div class="kpi-v">12</div><div class="kpi-ft"><span class="kpi-sub">被評価者のうち</span><span class="delta dn">要対応</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">AI品質ゲート通過率</div><div class="kpi-ic" style="background:var(--sb-ai-50);color:var(--sb-ai-700)"><i data-lucide="sparkles"></i></div></div><div class="kpi-v">94.1<span style="font-size:14px;color:var(--foreground-muted)">%</span></div><div class="kpi-ft"><span class="kpi-sub">平均2.3ターン</span><span class="delta up">↑ 8pt</span></div></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-h"><h3>被評価者別 進捗</h3>
+            <div style="display:flex;gap:8px"><button class="btn btn-ghost"><i data-lucide="filter"></i>フィルタ</button><button class="btn btn-sec"><i data-lucide="download"></i>CSV</button></div>
+          </div>
+          <table>
+            <thead><tr><th>被評価者</th><th>部署 / 役職</th><th style="width:140px">評価者</th><th style="width:180px">進捗</th><th>ステータス</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><div class="person"><span class="av c1">YT</span><div><div class="n">山田 太郎</div><div class="m">emp-00342</div></div></div></td><td>プロダクト本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">シニアエンジニア</span></td><td class="num">5 / 5</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:100%"></div></div><span class="num" style="font-size:12px">100%</span></div></td><td><span class="bd bd-ok">完了</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><div class="person"><span class="av c3">HK</span><div><div class="n">橋本 健一</div><div class="m">emp-00189</div></div></div></td><td>エンジニアリング部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">マネージャー</span></td><td class="num">4 / 6</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:67%"></div></div><span class="num" style="font-size:12px">67%</span></div></td><td><span class="bd bd-prog">進行中</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><div class="person"><span class="av c2">MK</span><div><div class="n">松本 京子</div><div class="m">emp-00487</div></div></div></td><td>デザイン部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">リードデザイナー</span></td><td class="num">2 / 3</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:67%;background:var(--sb-warning-500)"></div></div><span class="num" style="font-size:12px">67%</span></div></td><td><span class="bd bd-pending">期限近</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><div class="person"><span class="av c4">ST</span><div><div class="n">佐藤 智子</div><div class="m">emp-00611</div></div></div></td><td>セールス本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">アカウントエグゼクティブ</span></td><td class="num">2 / 3</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:67%;background:var(--sb-danger-500)"></div></div><span class="num" style="font-size:12px">67%</span></div></td><td><span class="bd bd-bad">統計的有意性不足</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><div class="person"><span class="av c5">AK</span><div><div class="n">秋元 真一</div><div class="m">emp-00108</div></div></div></td><td>経営企画室<br><span class="m" style="color:var(--foreground-muted);font-size:11px">室長</span></td><td class="num">8 / 8</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:100%"></div></div><span class="num" style="font-size:12px">100%</span></div></td><td><span class="bd bd-ai">マイルド化済</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><div class="person"><span class="av c7">NT</span><div><div class="n">中村 大輔</div><div class="m">emp-00723</div></div></div></td><td>プロダクト本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">PM</span></td><td class="num">3 / 5</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog"><div style="width:60%"></div></div><span class="num" style="font-size:12px">60%</span></div></td><td><span class="bd bd-prog">進行中</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- GOALS VIEW -->
+      <div class="view" id="view-goals">
+        <div class="pgttl">
+          <div><h1>目標（OKR/MBO）</h1><div class="sub">2026 Q2 — 個人目標 4件・承認待ち 1件</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="git-branch"></i>ツリー表示</button>
+            <button class="btn btn-primary" id="new-goal"><i data-lucide="plus"></i>目標を追加</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <div class="card" style="margin-bottom:14px;border-left:3px solid var(--sb-warning-500)">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="bd bd-pending">承認待ち</span><span class="m" style="font-size:11px;color:var(--foreground-muted)">OKR · 親: Q2 DAU 20%増</span></div>
+                  <h3 style="margin:0 0 6px;font-size:15px">検索体験の刷新で週次検索利用率を+8ptに引き上げる</h3>
+                  <div style="font-size:12px;color:var(--foreground-muted);line-height:1.6">KR1: 検索応答時間 p95 &lt; 300ms / KR2: 検索経由コンバージョン +12% / KR3: 「検索結果0件」率 &lt; 4%</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  <div class="num" style="font-size:22px;font-weight:700">42<span style="font-size:13px;color:var(--foreground-muted)">%</span></div>
+                  <div style="font-size:11px;color:var(--foreground-muted)">期限 6/30</div>
+                </div>
+              </div>
+              <div class="prog" style="margin-top:12px"><div style="width:42%"></div></div>
+            </div>
+
+            <div class="card" style="margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="bd bd-prog">進行中</span><span class="m" style="font-size:11px;color:var(--foreground-muted)">MBO · ウェイト 30%</span></div>
+                  <h3 style="margin:0 0 6px;font-size:15px">オンボーディングドキュメント整備</h3>
+                  <div style="font-size:12px;color:var(--foreground-muted)">新規入社者のランプアップ期間を現行45日→30日に短縮</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0"><div class="num" style="font-size:22px;font-weight:700">68<span style="font-size:13px;color:var(--foreground-muted)">%</span></div><div style="font-size:11px;color:var(--foreground-muted)">期限 5/31</div></div>
+              </div>
+              <div class="prog" style="margin-top:12px"><div style="width:68%"></div></div>
+            </div>
+
+            <div class="card" style="margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="bd bd-ok">完了</span><span class="m" style="font-size:11px;color:var(--foreground-muted)">MBO · ウェイト 20%</span></div>
+                  <h3 style="margin:0 0 6px;font-size:15px">プロダクト品質指標の定点観測</h3>
+                  <div style="font-size:12px;color:var(--foreground-muted)">週次で Core Web Vitals レポートを配信</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0"><div class="num" style="font-size:22px;font-weight:700">100<span style="font-size:13px;color:var(--foreground-muted)">%</span></div><div style="font-size:11px;color:var(--foreground-muted)">4/15 完了</div></div>
+              </div>
+              <div class="prog" style="margin-top:12px"><div style="width:100%;background:var(--sb-success-500)"></div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>承認フロー</h3></div>
+            <div class="act"><div class="ic" style="background:var(--sb-warning-50)"><i data-lucide="clock" style="color:var(--sb-warning-700)"></i></div><div class="c"><b>上長承認待ち</b><div class="t">田中 花子（マネージャー）に通知済み · 2時間前</div></div></div>
+            <div class="act"><div class="ic" style="background:var(--sb-info-50)"><i data-lucide="link" style="color:var(--sb-info-700)"></i></div><div class="c">親目標「Q2 DAU 20%増」に紐付け済み<div class="t">組織ツリー: 経営 → プロダクト本部 → 検索チーム</div></div></div>
+            <div class="act"><div class="ic" style="background:var(--sb-ai-50)"><i data-lucide="sparkles" style="color:var(--sb-ai-700)"></i></div><div class="c">AIアドバイス: <b>KR2の計測方法</b>を具体化すると進捗追跡しやすくなります<div class="t">Claude 3.5 · 自動提案</div></div></div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn btn-sec" style="flex:1"><i data-lucide="rotate-ccw"></i>差し戻し</button>
+              <button class="btn btn-primary" style="flex:1"><i data-lucide="check"></i>承認</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1ON1 VIEW -->
+      <div class="view" id="view-oneonone">
+        <div class="pgttl">
+          <div><h1>1on1 — 田中 花子</h1><div class="sub">エンジニアリング部 部長 · 次回 2026-04-22 14:00</div></div>
+          <div class="acts"><button class="btn btn-sec"><i data-lucide="calendar-plus"></i>予定を登録</button><button class="btn btn-primary"><i data-lucide="plus"></i>ログを追加</button></div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <div class="card" style="margin-bottom:14px">
+              <div class="card-h"><h3>4月前半 — Q2目標の方向性確認</h3><span class="bd bd-ok">本人開示可</span></div>
+              <div style="font-size:12px;color:var(--foreground-muted);margin-bottom:10px">実施: 2026-04-10 14:00 · 45分 · <span class="num">📎 目標6件 参照</span></div>
+              <div style="font-size:13px;line-height:1.7">
+                <b>議題:</b> Q2のKR設定方針 / 検索チームの体制<br>
+                <b>議事:</b> 検索応答時間の目標値について、p95 300msは野心的だが実現可能と合意。KR2の計測ダッシュボード構築を今週中に着手する。<br>
+                <b>ネクストアクション:</b><br>
+                ・検索ログのBigQuery連携（〜4/17）<br>
+                ・Grafanaダッシュボード共有（〜4/20）
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-h"><h3>3月後半 — キャリア希望の確認</h3><span class="bd bd-draft">本人非開示</span></div>
+              <div style="font-size:12px;color:var(--foreground-muted);margin-bottom:10px">実施: 2026-03-24 16:30 · 60分</div>
+              <div style="font-size:13px;line-height:1.7">
+                <b>議題:</b> 次年度キャリア・希望ロール<br>
+                <b>議事:</b> 2-3年スパンでEMロールへのチャレンジに興味。現状のスキルギャップを整理し、メンターをアサインする方向で確認。
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>関連情報</h3></div>
+            <div style="font-size:12px;color:var(--foreground-muted);margin-bottom:6px">今期の目標進捗</div>
+            <div style="padding:10px;background:var(--sb-slate-50);border-radius:6px;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:500;margin-bottom:6px">検索体験の刷新</div>
+              <div class="prog"><div style="width:42%"></div></div>
+            </div>
+            <div style="font-size:12px;color:var(--foreground-muted);margin-bottom:6px">評価履歴</div>
+            <div style="font-size:13px;padding:8px 0;border-top:1px solid var(--border)"><span class="num">2025下期</span> · 360度点 <b>82.3</b> · 等級 <b>B+</b></div>
+            <div style="font-size:13px;padding:8px 0;border-top:1px solid var(--border)"><span class="num">2025上期</span> · 360度点 <b>79.1</b> · 等級 <b>B</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SKILL VIEW (radar + heatmap) -->
+      <div class="view" id="view-skill">
+        <div class="pgttl">
+          <div><h1>スキルマップ</h1><div class="sub">プロダクト本部 · 162名 · 12スキルカテゴリ</div></div>
+          <div class="acts"><button class="btn btn-sec"><i data-lucide="download"></i>エクスポート</button><button class="btn btn-primary"><i data-lucide="bell"></i>採用アラートを確認（3）</button></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h"><h3>部署 × スキルカテゴリ ヒートマップ</h3><span class="m" style="font-size:11px;color:var(--foreground-muted)">充足率 %</span></div>
+            <div class="hm">
+              <div></div>
+              <div class="hd">Backend</div><div class="hd">Frontend</div><div class="hd">Data</div><div class="hd">Infra</div><div class="hd">Design</div><div class="hd">PM</div>
+
+              <div class="r-lbl">検索チーム</div>
+              <div class="cell" style="background:#16A34A;color:#fff">92</div>
+              <div class="cell" style="background:#86EFAC;color:#166534">78</div>
+              <div class="cell" style="background:#16A34A;color:#fff">88</div>
+              <div class="cell" style="background:#BEF264;color:#365314">62</div>
+              <div class="cell" style="background:#FECACA;color:#991B1B">34</div>
+              <div class="cell" style="background:#FCA5A5;color:#7F1D1D">48</div>
+
+              <div class="r-lbl">モバイルチーム</div>
+              <div class="cell" style="background:#BEF264;color:#365314">58</div>
+              <div class="cell" style="background:#16A34A;color:#fff">85</div>
+              <div class="cell" style="background:#FCA5A5;color:#7F1D1D">42</div>
+              <div class="cell" style="background:#FECACA;color:#991B1B">31</div>
+              <div class="cell" style="background:#BEF264;color:#365314">65</div>
+              <div class="cell" style="background:#86EFAC;color:#166534">72</div>
+
+              <div class="r-lbl">プラットフォーム</div>
+              <div class="cell" style="background:#16A34A;color:#fff">90</div>
+              <div class="cell" style="background:#FECACA;color:#991B1B">38</div>
+              <div class="cell" style="background:#BEF264;color:#365314">68</div>
+              <div class="cell" style="background:#16A34A;color:#fff">95</div>
+              <div class="cell" style="background:#FECACA;color:#991B1B">22</div>
+              <div class="cell" style="background:#86EFAC;color:#166534">74</div>
+
+              <div class="r-lbl">AIリサーチ</div>
+              <div class="cell" style="background:#86EFAC;color:#166534">76</div>
+              <div class="cell" style="background:#FCA5A5;color:#7F1D1D">44</div>
+              <div class="cell" style="background:#16A34A;color:#fff">94</div>
+              <div class="cell" style="background:#BEF264;color:#365314">60</div>
+              <div class="cell" style="background:#FCA5A5;color:#7F1D1D">48</div>
+              <div class="cell" style="background:#BEF264;color:#365314">58</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><h3>個人レーダー — 田中 花子</h3></div>
+            <svg class="radar" viewBox="-110 -110 220 220">
+              <g fill="none" stroke="#E2E8F0" stroke-width="1">
+                <polygon points="0,-90 78,-45 78,45 0,90 -78,45 -78,-45"/>
+                <polygon points="0,-60 52,-30 52,30 0,60 -52,30 -52,-30"/>
+                <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15"/>
+              </g>
+              <g stroke="#CBD5E1" stroke-width="1">
+                <line x1="0" y1="0" x2="0" y2="-90"/><line x1="0" y1="0" x2="78" y2="-45"/><line x1="0" y1="0" x2="78" y2="45"/>
+                <line x1="0" y1="0" x2="0" y2="90"/><line x1="0" y1="0" x2="-78" y2="45"/><line x1="0" y1="0" x2="-78" y2="-45"/>
+              </g>
+              <polygon fill="rgba(31,44,105,0.25)" stroke="#1F2C69" stroke-width="2" points="0,-75 65,-38 55,32 0,70 -50,28 -62,-36"/>
+              <g fill="#0F172A" font-size="10" font-family="Inter" text-anchor="middle">
+                <text x="0" y="-96">Backend</text>
+                <text x="90" y="-48">Frontend</text>
+                <text x="90" y="55">Data</text>
+                <text x="0" y="104">Infra</text>
+                <text x="-90" y="55">Design</text>
+                <text x="-90" y="-48">PM</text>
+              </g>
+            </svg>
+            <div style="display:flex;justify-content:space-around;margin-top:10px;font-size:11px;color:var(--foreground-muted)">
+              <div>現在 <b style="color:var(--primary)">●</b></div>
+              <div>希望役職要件 <b style="color:var(--border-strong)">○</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= 組織体制 ============= -->
+      <div class="view" id="view-org">
+        <div class="pgttl">
+          <div><h1>組織体制</h1><div class="sub">1,248名 · 12本部 · 48部署 · 有効日 2026-04-01</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="git-compare"></i>有効日で比較</button>
+            <button class="btn btn-sec"><i data-lucide="history"></i>履歴</button>
+            <button class="btn btn-primary"><i data-lucide="plus"></i>組織を追加</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h"><h3>組織ツリー</h3><span class="m" style="font-size:11px;color:var(--foreground-muted)">クリックで展開</span></div>
+            <div class="org-tree">
+              <div class="org-node lvl-0">
+                <i data-lucide="chevron-down"></i>
+                <i data-lucide="building-2" class="ic"></i>
+                <span class="name">SUNBIT 株式会社</span>
+                <span class="count">1,248</span>
+              </div>
+              <div class="org-node lvl-1">
+                <i data-lucide="chevron-down"></i><i data-lucide="folder" class="ic"></i>
+                <span class="name">プロダクト本部</span><span class="count">162</span>
+                <span class="bd bd-ok" style="margin-left:8px">本部長: 田中 花子</span>
+              </div>
+              <div class="org-node lvl-2">
+                <i data-lucide="chevron-down"></i><i data-lucide="folder" class="ic"></i>
+                <span class="name">検索チーム</span><span class="count">28</span>
+              </div>
+              <div class="org-node lvl-2"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">モバイルチーム</span><span class="count">41</span></div>
+              <div class="org-node lvl-2"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">プラットフォームチーム</span><span class="count">35</span></div>
+              <div class="org-node lvl-2"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">AI リサーチチーム</span><span class="count">24</span></div>
+              <div class="org-node lvl-1"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">エンジニアリング部</span><span class="count">284</span></div>
+              <div class="org-node lvl-1"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">デザイン部</span><span class="count">58</span></div>
+              <div class="org-node lvl-1"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">セールス本部</span><span class="count">196</span></div>
+              <div class="org-node lvl-1"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">コーポレート本部</span><span class="count">108</span></div>
+              <div class="org-node lvl-1"><i data-lucide="chevron-right"></i><i data-lucide="folder" class="ic"></i><span class="name">経営企画室</span><span class="count">14</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>検索チーム — 詳細</h3><button class="btn btn-ghost"><i data-lucide="pencil"></i>編集</button></div>
+            <div class="kv">
+              <div class="kv-r"><span class="kv-k">組織コード</span><span class="kv-v num">org-2041</span></div>
+              <div class="kv-r"><span class="kv-k">親組織</span><span class="kv-v">プロダクト本部</span></div>
+              <div class="kv-r"><span class="kv-k">マネージャー</span><span class="kv-v"><span class="person" style="display:inline-flex"><span class="av c3" style="width:20px;height:20px;font-size:9px">TH</span>田中 花子</span></span></div>
+              <div class="kv-r"><span class="kv-k">メンバー数</span><span class="kv-v num">28名</span></div>
+              <div class="kv-r"><span class="kv-k">発令日</span><span class="kv-v num">2024-10-01</span></div>
+              <div class="kv-r"><span class="kv-k">コストセンター</span><span class="kv-v num">CC-PROD-SEARCH</span></div>
+              <div class="kv-r"><span class="kv-k">ステータス</span><span class="kv-v"><span class="bd bd-ok">有効</span></span></div>
+            </div>
+            <h3 style="font-size:13px;margin:16px 0 8px">メンバー構成</h3>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <span class="chip">Backend 11</span>
+              <span class="chip">Frontend 7</span>
+              <span class="chip">Data 5</span>
+              <span class="chip">PM 2</span>
+              <span class="chip">Designer 2</span>
+              <span class="chip">EM 1</span>
+            </div>
+            <div class="callout-inline" style="margin-top:14px">
+              <i data-lucide="history"></i>
+              <div>次回組織改編予定: <b>2026-10-01</b> に「AI 検索チーム」として分社化予定（下書きあり）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= スキル管理 ============= -->
+      <div class="view" id="view-skillmgmt">
+        <div class="pgttl">
+          <div><h1>スキル管理</h1><div class="sub">マスタ 84スキル · 本人申告 89.2% · 承認待ち 23件</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="settings-2"></i>マスタを編集</button>
+            <button class="btn btn-primary"><i data-lucide="upload"></i>CSV 一括登録</button>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">登録済みスキル</div><div class="kpi-ic" style="background:var(--sb-navy-50);color:var(--sb-navy-700)"><i data-lucide="sparkles"></i></div></div><div class="kpi-v">84</div><div class="kpi-ft"><span class="kpi-sub">6カテゴリ</span><span class="delta up">+3 今月</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">本人申告率</div><div class="kpi-ic" style="background:var(--sb-success-50);color:var(--sb-success-700)"><i data-lucide="user-check"></i></div></div><div class="kpi-v">89.2<span style="font-size:14px;color:var(--foreground-muted)">%</span></div><div class="kpi-ft"><span class="kpi-sub">1,113 / 1,248名</span><span class="delta up">↑ 4.1pt</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">上長承認待ち</div><div class="kpi-ic" style="background:var(--sb-warning-50);color:var(--sb-warning-700)"><i data-lucide="clock"></i></div></div><div class="kpi-v">23</div><div class="kpi-ft"><span class="kpi-sub">平均待機 2.1日</span><span class="delta dn">処理要</span></div></div>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-h"><h3>スキルマスタ</h3><div style="display:flex;gap:8px"><button class="btn btn-ghost"><i data-lucide="filter"></i>カテゴリ</button><button class="btn btn-primary"><i data-lucide="plus"></i>追加</button></div></div>
+            <table>
+              <thead><tr><th>スキル名</th><th>カテゴリ</th><th style="width:90px">レベル</th><th style="width:80px">保有者</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><b>TypeScript</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">Webフロント・バックエンド</div></td><td><span class="chip">Frontend</span></td><td class="num">1–5</td><td class="num">412</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+                <tr><td><b>PostgreSQL</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">RDB 設計・最適化</div></td><td><span class="chip">Data</span></td><td class="num">1–5</td><td class="num">287</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+                <tr><td><b>LLM アプリ開発</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">Claude / GPT API・RAG</div></td><td><span class="chip" style="background:var(--sb-ai-50);color:var(--sb-ai-700)">AI</span></td><td class="num">1–5</td><td class="num">142</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+                <tr><td><b>Figma</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">UI デザイン・プロトタイピング</div></td><td><span class="chip">Design</span></td><td class="num">1–5</td><td class="num">94</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+                <tr><td><b>OKR 運用</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">目標設計・進捗管理</div></td><td><span class="chip">Management</span></td><td class="num">1–5</td><td class="num">68</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+                <tr><td><b>日英ビジネス英語</b><div class="m" style="font-size:11px;color:var(--foreground-muted)">対外折衝・技術ドキュメント</div></td><td><span class="chip">Language</span></td><td class="num">1–5</td><td class="num">156</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>承認待ち申告</h3><span class="m" style="font-size:11px;color:var(--foreground-muted)">23件</span></div>
+            <div class="appr-item">
+              <div class="person" style="margin-bottom:8px"><span class="av c4">HK</span><div><div class="n">橋本 健一</div><div class="m">エンジニアリング部</div></div></div>
+              <div style="font-size:13px;margin-bottom:6px"><b>LLM アプリ開発</b> を <b>Lv 3</b> に申告</div>
+              <div style="font-size:12px;color:var(--foreground-muted);background:var(--sb-slate-50);padding:8px 10px;border-radius:6px;line-height:1.6">社内 RAG システムの設計と実装をリード。Claude API を用いた評価コメント品質チェックも担当。</div>
+              <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-sec" style="flex:1"><i data-lucide="x"></i>差し戻し</button><button class="btn btn-primary" style="flex:1"><i data-lucide="check"></i>承認</button></div>
+            </div>
+            <div class="appr-item">
+              <div class="person" style="margin-bottom:8px"><span class="av c2">MK</span><div><div class="n">松本 京子</div><div class="m">デザイン部</div></div></div>
+              <div style="font-size:13px;margin-bottom:6px"><b>Figma</b> を <b>Lv 5</b> に申告</div>
+              <div style="font-size:12px;color:var(--foreground-muted);background:var(--sb-slate-50);padding:8px 10px;border-radius:6px;line-height:1.6">デザインシステム全体を Figma で構築。Variables・Components の運用ルール整備まで実施。</div>
+              <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-sec" style="flex:1"><i data-lucide="x"></i>差し戻し</button><button class="btn btn-primary" style="flex:1"><i data-lucide="check"></i>承認</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= 社員名簿 ============= -->
+      <div class="view" id="view-directory">
+        <div class="pgttl">
+          <div><h1>社員名簿</h1><div class="sub">在籍 1,248名 · 部署 48 · 役職 32</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="download"></i>CSV 出力</button>
+            <button class="btn btn-sec"><i data-lucide="upload"></i>CSV 取込</button>
+            <button class="btn btn-primary"><i data-lucide="user-plus"></i>社員を追加</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <div class="search" style="max-width:280px;margin:0"><i data-lucide="search"></i><input placeholder="氏名・社員番号・部署"></div>
+              <button class="chip chip-on">全員 1,248</button>
+              <button class="chip">プロダクト本部</button>
+              <button class="chip">エンジニアリング部</button>
+              <button class="chip">デザイン部</button>
+              <button class="chip">セールス本部</button>
+              <button class="chip">＋ 8</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center"><span class="m" style="font-size:11px;color:var(--foreground-muted)">表示: 1–24 / 1,248</span></div>
+          </div>
+          <table>
+            <thead><tr><th style="width:32px"><input type="checkbox"></th><th>氏名</th><th>社員番号</th><th>部署 / 役職</th><th>等級</th><th>入社日</th><th>ステータス</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c3">TH</span><div><div class="n">田中 花子</div><div class="m">hanako.tanaka@sunbit.jp</div></div></div></td><td class="num">emp-00001</td><td>プロダクト本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">本部長</span></td><td class="num">M3</td><td class="num">2019-04-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c1">YT</span><div><div class="n">山田 太郎</div><div class="m">taro.yamada@sunbit.jp</div></div></div></td><td class="num">emp-00342</td><td>プロダクト本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">シニアエンジニア</span></td><td class="num">S2</td><td class="num">2021-10-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c4">HK</span><div><div class="n">橋本 健一</div><div class="m">kenichi.hashimoto@sunbit.jp</div></div></div></td><td class="num">emp-00189</td><td>エンジニアリング部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">マネージャー</span></td><td class="num">M2</td><td class="num">2020-04-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c2">MK</span><div><div class="n">松本 京子</div><div class="m">kyoko.matsumoto@sunbit.jp</div></div></div></td><td class="num">emp-00487</td><td>デザイン部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">リードデザイナー</span></td><td class="num">S3</td><td class="num">2022-01-15</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c6">ST</span><div><div class="n">佐藤 智子</div><div class="m">tomoko.sato@sunbit.jp</div></div></div></td><td class="num">emp-00611</td><td>セールス本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">AE</span></td><td class="num">S1</td><td class="num">2023-04-01</td><td><span class="bd bd-pending">育休中</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c5">AK</span><div><div class="n">秋元 真一</div><div class="m">shinichi.akimoto@sunbit.jp</div></div></div></td><td class="num">emp-00108</td><td>経営企画室<br><span class="m" style="color:var(--foreground-muted);font-size:11px">室長</span></td><td class="num">M3</td><td class="num">2018-09-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c7">NT</span><div><div class="n">中村 大輔</div><div class="m">daisuke.nakamura@sunbit.jp</div></div></div></td><td class="num">emp-00723</td><td>プロダクト本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">PM</span></td><td class="num">S2</td><td class="num">2022-07-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+              <tr><td><input type="checkbox"></td><td><div class="person"><span class="av c8">HM</span><div><div class="n">平野 美咲</div><div class="m">misaki.hirano@sunbit.jp</div></div></div></td><td class="num">emp-00812</td><td>コーポレート本部<br><span class="m" style="color:var(--foreground-muted);font-size:11px">HR スペシャリスト</span></td><td class="num">S1</td><td class="num">2024-04-01</td><td><span class="bd bd-ok">在籍</span></td><td><button class="btn btn-ghost"><i data-lucide="chevron-right"></i></button></td></tr>
+            </tbody>
+          </table>
+          <div class="pager">
+            <span class="m" style="font-size:12px;color:var(--foreground-muted)">1–24 / 1,248</span>
+            <div style="display:flex;gap:4px">
+              <button class="iconbtn" disabled><i data-lucide="chevrons-left"></i></button>
+              <button class="iconbtn" disabled><i data-lucide="chevron-left"></i></button>
+              <span class="num" style="padding:6px 10px;font-size:12px">1 / 52</span>
+              <button class="iconbtn"><i data-lucide="chevron-right"></i></button>
+              <button class="iconbtn"><i data-lucide="chevrons-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= レポート ============= -->
+      <div class="view" id="view-reports">
+        <div class="pgttl">
+          <div><h1>レポート</h1><div class="sub">保存済み 12件 · 定期配信 4件</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="calendar"></i>定期配信</button>
+            <button class="btn btn-primary"><i data-lucide="plus"></i>レポート作成</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <button class="rpt-tile"><i data-lucide="scan-face"></i><div class="t">評価サマリ</div><div class="s">完了率・分布・偏差</div></button>
+          <button class="rpt-tile"><i data-lucide="target"></i><div class="t">目標達成レポート</div><div class="s">OKR / MBO 別</div></button>
+          <button class="rpt-tile"><i data-lucide="sparkles"></i><div class="t">スキル分布</div><div class="s">部署×カテゴリ</div></button>
+          <button class="rpt-tile"><i data-lucide="users-round"></i><div class="t">離職リスク</div><div class="s">AI 予測</div></button>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>評価完了率 — 部署別（2026上期）</h3><div style="display:flex;gap:8px"><button class="btn btn-ghost"><i data-lucide="filter"></i>期間</button><button class="btn btn-sec"><i data-lucide="download"></i>PDF</button></div></div>
+          <div class="bar-chart">
+            <div class="bar-row"><span class="bar-lbl">プロダクト本部</span><div class="bar-track"><div class="bar-fill" style="width:94%;background:var(--sb-navy-600)"></div></div><span class="num bar-val">94%</span></div>
+            <div class="bar-row"><span class="bar-lbl">エンジニアリング部</span><div class="bar-track"><div class="bar-fill" style="width:82%;background:var(--sb-navy-600)"></div></div><span class="num bar-val">82%</span></div>
+            <div class="bar-row"><span class="bar-lbl">デザイン部</span><div class="bar-track"><div class="bar-fill" style="width:88%;background:var(--sb-navy-600)"></div></div><span class="num bar-val">88%</span></div>
+            <div class="bar-row"><span class="bar-lbl">セールス本部</span><div class="bar-track"><div class="bar-fill" style="width:71%;background:var(--sb-warning-500)"></div></div><span class="num bar-val">71%</span></div>
+            <div class="bar-row"><span class="bar-lbl">コーポレート本部</span><div class="bar-track"><div class="bar-fill" style="width:76%;background:var(--sb-navy-600)"></div></div><span class="num bar-val">76%</span></div>
+            <div class="bar-row"><span class="bar-lbl">経営企画室</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--sb-success-500)"></div></div><span class="num bar-val">100%</span></div>
+          </div>
+          <div style="display:flex;gap:14px;font-size:11px;color:var(--foreground-muted);margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--sb-navy-600);vertical-align:-1px;margin-right:4px"></span>達成</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--sb-warning-500);vertical-align:-1px;margin-right:4px"></span>要注意（&lt; 80%）</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--sb-success-500);vertical-align:-1px;margin-right:4px"></span>完了</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-h"><h3>定期配信レポート</h3></div>
+          <table>
+            <thead><tr><th>レポート名</th><th>配信先</th><th>頻度</th><th>次回配信</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><b>評価週次サマリ</b></td><td>役員 6名 + HR 部長</td><td><span class="chip">毎週月曜 09:00</span></td><td class="num">2026-04-20 09:00</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+              <tr><td><b>目標進捗レポート</b></td><td>全マネージャー</td><td><span class="chip">毎月 1日</span></td><td class="num">2026-05-01 09:00</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+              <tr><td><b>スキル充足ギャップ</b></td><td>HR_MANAGER</td><td><span class="chip">四半期</span></td><td class="num">2026-07-01 09:00</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+              <tr><td><b>AI コスト月次</b></td><td>ADMIN</td><td><span class="chip">毎月 1日</span></td><td class="num">2026-05-01 09:00</td><td><button class="btn btn-ghost"><i data-lucide="pencil"></i></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============= 異議申立て ============= -->
+      <div class="view" id="view-appeals">
+        <div class="pgttl">
+          <div><h1>異議申立て</h1><div class="sub">審査対象 7件 · うち期限3日以内 3件</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="filter"></i>絞り込み</button>
+            <button class="btn btn-sec"><i data-lucide="download"></i>履歴を出力</button>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">審査中</div><div class="kpi-ic" style="background:var(--sb-warning-50);color:var(--sb-warning-700)"><i data-lucide="clock"></i></div></div><div class="kpi-v">7</div><div class="kpi-ft"><span class="kpi-sub">平均 3.2日</span><span class="delta dn">3件期限近</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">今期完了</div><div class="kpi-ic" style="background:var(--sb-success-50);color:var(--sb-success-700)"><i data-lucide="check-circle-2"></i></div></div><div class="kpi-v">24</div><div class="kpi-ft"><span class="kpi-sub">是正 11 / 却下 13</span><span class="delta up">平均 5.1日</span></div></div>
+          <div class="kpi"><div class="kpi-top"><div class="kpi-k">是正率</div><div class="kpi-ic" style="background:var(--sb-info-50);color:var(--sb-info-700)"><i data-lucide="scale"></i></div></div><div class="kpi-v">45.8<span style="font-size:14px;color:var(--foreground-muted)">%</span></div><div class="kpi-ft"><span class="kpi-sub">昨期 38.9%</span><span class="delta up">↑ 6.9pt</span></div></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-h"><h3>審査対象 — 優先度順</h3></div>
+          <div class="appeal-item" style="border-left:3px solid var(--sb-danger-500)">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--foreground-muted)">#A-0247</span>
+                  <span class="bd bd-bad">期限 2日以内</span>
+                  <span class="bd" style="background:var(--sb-slate-100);color:var(--sb-slate-700)"><span style="width:6px;height:6px;border-radius:50%;background:var(--sb-slate-500)"></span>総合評価点への申立て</span>
+                </div>
+                <h3 style="margin:0;font-size:15px">匿名性の担保に疑問があるため、評価プロセスの開示を求めます</h3>
+              </div>
+              <div class="person"><span class="av c1">YT</span><div><div class="n">山田 太郎</div><div class="m">emp-00342 · 提出 2026-04-11</div></div></div>
+            </div>
+            <div style="font-size:12px;color:var(--foreground-muted);background:var(--sb-slate-50);padding:10px 12px;border-radius:6px;line-height:1.6;margin-bottom:10px">
+              今期の 360 度評価で特定のコメントが個人を特定しうる内容であった。最低評価者数が 3 名と少なかったことから、匿名性の担保に疑問があり、評価プロセスの検証を依頼したい。
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sec"><i data-lucide="message-square"></i>補足を依頼</button>
+              <button class="btn btn-sec"><i data-lucide="x"></i>却下</button>
+              <button class="btn btn-primary"><i data-lucide="check"></i>是正に進む</button>
+            </div>
+          </div>
+
+          <div class="appeal-item">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--foreground-muted)">#A-0246</span>
+                  <span class="bd bd-pending">期限 5日</span>
+                  <span class="bd" style="background:var(--sb-slate-100);color:var(--sb-slate-700)"><span style="width:6px;height:6px;border-radius:50%;background:var(--sb-slate-500)"></span>フィードバック文面への申立て</span>
+                </div>
+                <h3 style="margin:0;font-size:15px">マイルド化変換の結果、元の意図と異なる表現になっている</h3>
+              </div>
+              <div class="person"><span class="av c4">HK</span><div><div class="n">橋本 健一</div><div class="m">emp-00189 · 提出 2026-04-14</div></div></div>
+            </div>
+            <div style="font-size:12px;color:var(--foreground-muted);background:var(--sb-slate-50);padding:10px 12px;border-radius:6px;line-height:1.6;margin-bottom:10px">
+              受領したフィードバックの一部について、AI マイルド化変換後の表現がオリジナルと大きく異なっており、コーチングの意図が正確に伝わっていない可能性がある。原文の確認を希望する。
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sec"><i data-lucide="message-square"></i>補足を依頼</button>
+              <button class="btn btn-sec"><i data-lucide="x"></i>却下</button>
+              <button class="btn btn-primary"><i data-lucide="check"></i>是正に進む</button>
+            </div>
+          </div>
+
+          <div class="appeal-item">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--foreground-muted)">#A-0244</span>
+                  <span class="bd bd-prog">期限 8日</span>
+                  <span class="bd" style="background:var(--sb-slate-100);color:var(--sb-slate-700)"><span style="width:6px;height:6px;border-radius:50%;background:var(--sb-slate-500)"></span>等級判定への申立て</span>
+                </div>
+                <h3 style="margin:0;font-size:15px">等級判定の根拠に目標達成の実績が十分に反映されていない</h3>
+              </div>
+              <div class="person"><span class="av c2">MK</span><div><div class="n">松本 京子</div><div class="m">emp-00487 · 提出 2026-04-09</div></div></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sec"><i data-lucide="message-square"></i>補足を依頼</button>
+              <button class="btn btn-sec"><i data-lucide="x"></i>却下</button>
+              <button class="btn btn-primary"><i data-lucide="check"></i>是正に進む</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= 監査ログ ============= -->
+      <div class="view" id="view-audit">
+        <div class="pgttl">
+          <div><h1>監査ログ</h1><div class="sub">直近 30 日 · 合計 24,817 件 · 保存期間 7年</div></div>
+          <div class="acts">
+            <button class="btn btn-sec"><i data-lucide="calendar"></i>期間指定</button>
+            <button class="btn btn-sec"><i data-lucide="download"></i>JSONL 出力</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="chip chip-on">全 24,817</button>
+              <button class="chip">評価 8,104</button>
+              <button class="chip">目標 4,221</button>
+              <button class="chip">承認 3,887</button>
+              <button class="chip">権限変更 142</button>
+              <button class="chip" style="background:var(--sb-danger-50);color:var(--sb-danger-700)">高リスク 24</button>
+            </div>
+            <div class="search" style="max-width:220px;margin:0"><i data-lucide="search"></i><input placeholder="actor / resource / ID"></div>
+          </div>
+          <table class="audit-tbl">
+            <thead><tr><th style="width:140px">時刻 (JST)</th><th style="width:100px">Actor</th><th style="width:100px">アクション</th><th>リソース</th><th style="width:90px">結果</th><th style="width:70px">IP</th></tr></thead>
+            <tbody>
+              <tr><td class="num">2026-04-18 14:32:07.412</td><td><span class="chip chip-xs">HR_MANAGER</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">林 悠子</span></td><td><span class="chip chip-xs" style="background:var(--sb-navy-50);color:var(--sb-navy-700)">finalize</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">cycle.2026H1 → status=FINALIZED</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">10.8.1.*</td></tr>
+              <tr><td class="num">2026-04-18 14:28:51.004</td><td><span class="chip chip-xs">MANAGER</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">田中 花子</span></td><td><span class="chip chip-xs">approve</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">goal.emp-00342.2026Q2</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">10.8.2.*</td></tr>
+              <tr><td class="num">2026-04-18 14:24:11.889</td><td><span class="chip chip-xs">SYSTEM</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">ai-service</span></td><td><span class="chip chip-xs" style="background:var(--sb-ai-50);color:var(--sb-ai-700)">ai.mild</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">feedback.fb-10247 (turns=2, cost=¥4.2)</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">—</td></tr>
+              <tr><td class="num">2026-04-18 14:12:03.201</td><td><span class="chip chip-xs" style="background:var(--sb-danger-50);color:var(--sb-danger-700)">ADMIN</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">秋元 真一</span></td><td><span class="chip chip-xs" style="background:var(--sb-danger-50);color:var(--sb-danger-700)">role.grant</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">emp-00812 → HR_MANAGER</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">10.1.*</td></tr>
+              <tr><td class="num">2026-04-18 13:58:41.670</td><td><span class="chip chip-xs">EMPLOYEE</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">山田 太郎</span></td><td><span class="chip chip-xs">submit</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">evaluation.emp-00189.peer</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">10.8.3.*</td></tr>
+              <tr><td class="num">2026-04-18 13:47:11.045</td><td><span class="chip chip-xs">EMPLOYEE</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">中村 大輔</span></td><td><span class="chip chip-xs" style="background:var(--sb-warning-50);color:var(--sb-warning-700)">login.fail</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">reason=invalid_mfa_code (attempt 2/3)</td><td><span class="bd bd-bad">失敗</span></td><td class="num" style="font-size:11px">153.*.*</td></tr>
+              <tr><td class="num">2026-04-18 13:31:22.910</td><td><span class="chip chip-xs">HR_MANAGER</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">林 悠子</span></td><td><span class="chip chip-xs">export</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">report.evaluation-summary.2026H1 (PDF, 1.2MB)</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">10.8.1.*</td></tr>
+              <tr><td class="num">2026-04-18 12:04:58.224</td><td><span class="chip chip-xs">SYSTEM</span><span class="num" style="font-size:11px;color:var(--foreground-muted);display:block">scheduler</span></td><td><span class="chip chip-xs">batch.csv</span></td><td class="mono" style="font-family:var(--font-mono);font-size:12px">employee.bulk_import (rows=3, errors=0)</td><td><span class="bd bd-ok">成功</span></td><td class="num" style="font-size:11px">—</td></tr>
+            </tbody>
+          </table>
+          <div class="pager"><span class="m" style="font-size:12px;color:var(--foreground-muted)">1–50 / 24,817</span><div style="display:flex;gap:4px"><button class="iconbtn" disabled><i data-lucide="chevron-left"></i></button><span class="num" style="padding:6px 10px;font-size:12px">1 / 497</span><button class="iconbtn"><i data-lucide="chevron-right"></i></button></div></div>
+        </div>
+      </div>
+
+      <!-- ============= 設定 ============= -->
+      <div class="view" id="view-settings">
+        <div class="pgttl">
+          <div><h1>設定</h1><div class="sub">ワークスペース設定 · 最終更新 2026-04-12 by 秋元 真一</div></div>
+        </div>
+
+        <div class="settings-grid">
+          <nav class="settings-nav">
+            <a class="active"><i data-lucide="settings-2"></i>一般</a>
+            <a><i data-lucide="award"></i>等級マスタ</a>
+            <a><i data-lucide="sliders-horizontal"></i>評価ウェイト</a>
+            <a><i data-lucide="calendar-clock"></i>評価サイクル</a>
+            <a><i data-lucide="sparkles"></i>AI 設定</a>
+            <a><i data-lucide="key-round"></i>ロール・権限</a>
+            <a><i data-lucide="bell"></i>通知</a>
+            <a><i data-lucide="plug"></i>連携（SSO / HRIS）</a>
+          </nav>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="card">
+              <div class="card-h"><h3>一般</h3></div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">組織名</div><div class="setting-s">ワークスペース表示名 · ログイン画面・メール差出人に使用</div></div>
+                <div class="setting-r"><input type="text" class="inp" value="SUNBIT 株式会社"></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">タイムゾーン</div><div class="setting-s">Phase 1 は Asia/Tokyo 固定</div></div>
+                <div class="setting-r"><select class="inp" disabled><option>Asia/Tokyo (UTC+09:00)</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">会計年度</div><div class="setting-s">評価サイクル・目標期間の基準</div></div>
+                <div class="setting-r"><select class="inp"><option>4月 始まり（日本会計年度）</option><option>1月 始まり</option></select></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">ロゴ</div><div class="setting-s">ヘッダー・ログイン画面に表示</div></div>
+                <div class="setting-r" style="display:flex;gap:10px;align-items:center"><img src="../../assets/logo.png" style="height:28px;background:var(--sb-slate-50);padding:4px 10px;border-radius:6px;border:1px solid var(--border)"><button class="btn btn-sec"><i data-lucide="upload"></i>差し替え</button></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-h"><h3>AI 設定</h3><span class="bd bd-ai">Claude 3.5 Sonnet</span></div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">AI コーチング</div><div class="setting-s">評価コメント入力時に AI 品質ゲートを有効化</div></div>
+                <div class="setting-r"><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">マイルド化変換</div><div class="setting-s">被評価者開示前にネガティブ表現を建設的な表現に変換</div></div>
+                <div class="setting-r"><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-l"><div class="setting-t">月次 AI コスト上限</div><div class="setting-s">超過時はコーチング機能を一時停止</div></div>
+                <div class="setting-r" style="display:flex;align-items:center;gap:6px"><span class="num" style="font-family:var(--font-mono);font-size:12px;color:var(--foreground-muted)">¥</span><input type="text" class="inp num" value="500,000" style="width:120px"></div>
+              </div>
+              <div style="background:var(--sb-ai-50);border:1px solid var(--sb-ai-500);color:var(--sb-ai-700);padding:10px 14px;border-radius:6px;font-size:12px;display:flex;gap:8px;align-items:center"><i data-lucide="info"></i>今月の消費: ¥187,240 / ¥500,000（37.4%）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- AI Modal -->
+<div id="ai-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(4px);z-index:50;align-items:center;justify-content:center">
+  <div style="width:640px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div class="ai-card" style="box-shadow:var(--shadow-3)">
+      <div class="ai-hdr">
+        <div class="t"><i data-lucide="sparkles"></i>AIコーチング — 評価コメント作成</div>
+        <div class="meta">評価対象: 中村 大輔 / ターン 3 · 平均3秒</div>
+      </div>
+      <div class="ai-body" id="chat-body">
+        <div class="msg ai"><span class="av ai">AI</span><div class="bubble">評価対象者について、<b>具体的なエピソード</b>を1つ教えていただけますか？「協調性が高い」だけでは、相手に伝わりにくいです。</div></div>
+        <div class="msg u"><span class="av u">私</span><div class="bubble">3月のプロジェクトでスケジュール遅延が発生した際、メンバーの担当を調整しながら自ら残タスクを巻き取ってくれました。</div></div>
+        <div class="msg ai"><span class="av ai">AI</span><div class="bubble">ありがとうございます。価値観「<b>チームワーク</b>」との関連性が明確になりました。もう少し、相手にどのような影響があったかを加えるとさらに伝わります。</div></div>
+      </div>
+      <div class="ai-gate" id="quality-gate"><i data-lucide="alert-circle"></i>品質ゲート：具体的な影響の記述が不足しています</div>
+      <div class="compose">
+        <textarea id="ai-input" placeholder="返信を入力..."></textarea>
+        <button class="btn btn-ai" id="ai-send"><i data-lucide="send"></i>送信</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border);background:var(--sb-slate-50)">
+        <button class="btn btn-ghost" id="ai-close"><i data-lucide="x"></i>閉じる</button>
+        <button class="btn btn-primary" id="ai-submit" disabled style="opacity:0.5"><i data-lucide="check"></i>評価を確定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><i data-lucide="check-circle-2"></i><span id="toast-msg">保存しました</span></div>
+
+<script>
+lucide.createIcons();
+
+// Navigation
+const views = document.querySelectorAll('.view');
+const nav = document.querySelectorAll('.nav a[data-view]');
+const crumb = document.getElementById('crumb');
+const names = {dashboard:'ダッシュボード',evaluation:'360度評価',goals:'目標（OKR/MBO）',oneonone:'1on1',skill:'スキルマップ',org:'組織体制',skillmgmt:'スキル管理',directory:'社員名簿',reports:'レポート',appeals:'異議申立て',audit:'監査ログ',settings:'設定'};
+nav.forEach(a => a.addEventListener('click', () => {
+  const v = a.dataset.view;
+  nav.forEach(x => x.classList.remove('active'));
+  a.classList.add('active');
+  views.forEach(x => x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  crumb.textContent = names[v];
+  window.scrollTo(0,0);
+}));
+
+// Toast
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// AI Modal
+const modal = document.getElementById('ai-modal');
+document.getElementById('new-goal').addEventListener('click', ()=>toast('目標フォームを開きました'));
+document.getElementById('finalize').addEventListener('click', ()=>{
+  if(confirm('2026年度上期の評価サイクルを確定します。この操作は取り消せません。よろしいですか？')){
+    toast('サイクルを確定しました');
+  }
+});
+
+// Open AI when clicking any "進行中" row
+document.querySelectorAll('#view-evaluation tbody tr').forEach(tr=>{
+  tr.addEventListener('click',()=>{modal.style.display='flex';lucide.createIcons();});
+});
+document.getElementById('ai-close').addEventListener('click',()=>modal.style.display='none');
+
+// AI chat
+const input = document.getElementById('ai-input');
+const chatBody = document.getElementById('chat-body');
+const gate = document.getElementById('quality-gate');
+const submitBtn = document.getElementById('ai-submit');
+document.getElementById('ai-send').addEventListener('click', ()=>{
+  const txt = input.value.trim();
+  if(!txt) return;
+  chatBody.insertAdjacentHTML('beforeend', `<div class="msg u"><span class="av u">私</span><div class="bubble">${txt}</div></div>`);
+  input.value = '';
+  chatBody.scrollTop = chatBody.scrollHeight;
+  setTimeout(()=>{
+    chatBody.insertAdjacentHTML('beforeend', `<div class="msg ai"><span class="av ai">AI</span><div class="bubble">✓ 具体性・価値観関連性ともに基準を満たしました。評価を確定できます。</div></div>`);
+    gate.innerHTML = '<i data-lucide="check-circle-2"></i>品質ゲート通過 — 評価を送信できます';
+    gate.style.background = 'var(--sb-success-50)';
+    gate.style.borderTopColor = 'var(--sb-success-500)';
+    gate.style.color = 'var(--sb-success-700)';
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = '1';
+    lucide.createIcons();
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }, 900);
+});
+document.getElementById('ai-submit').addEventListener('click',()=>{
+  modal.style.display='none';
+  toast('評価を送信しました · インセンティブ +1');
+});
+</script>
+</body>
+</html>

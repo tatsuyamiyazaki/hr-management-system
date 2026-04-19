@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Avatars & People</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.av{border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:600;color:#fff;flex-shrink:0}
+.xs{width:20px;height:20px;font-size:9px}
+.sm{width:28px;height:28px;font-size:11px}
+.md{width:36px;height:36px;font-size:13px}
+.lg{width:48px;height:48px;font-size:16px}
+.c1{background:#1F2C69}.c2{background:#7C3AED}.c3{background:#16A34A}.c4{background:#2563EB}.c5{background:#DC2626}.c6{background:#475569}
+.stack{display:flex}
+.stack .av{border:2px solid #fff;margin-left:-8px}
+.stack .av:first-child{margin-left:0}
+.person{display:flex;align-items:center;gap:10px}
+.name{font-size:13px;font-weight:500}
+.meta{font-size:11px;color:var(--foreground-muted)}
+.role{font-family:var(--font-mono);font-size:10px;color:var(--foreground-muted);background:var(--sb-slate-100);padding:1px 6px;border-radius:var(--radius-sm)}
+</style></head><body>
+<div class="row">
+  <span class="av xs c1">ST</span>
+  <span class="av sm c2">MY</span>
+  <span class="av md c3">田</span>
+  <span class="av lg c4">AK</span>
+  <div class="stack">
+    <span class="av sm c1">YT</span><span class="av sm c2">MK</span><span class="av sm c3">HK</span><span class="av sm c4">ST</span>
+    <span class="av sm" style="background:var(--sb-slate-200);color:var(--sb-slate-700)">+4</span>
+  </div>
+</div>
+<div class="row" style="gap:24px">
+  <div class="person"><span class="av md c1">山田</span><div><div class="name">山田 太郎</div><div class="meta">プロダクト本部 / シニア</div></div></div>
+  <div class="person"><span class="av md c3">田</span><div><div class="name">田中 花子 <span class="role">MANAGER</span></div><div class="meta">エンジニアリング部 部長</div></div></div>
+</div>
+</body></html>

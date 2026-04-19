@@ -1,0 +1,255 @@
+/* ==========================================================================
+   Sunbit HR Design System — Colors & Typography
+   ========================================================================== */
+
+/* Fonts (Google Fonts CDN) ------------------------------------------------ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ------- Base Palette: Sunbit Navy (Primary, from official logo) ------- */
+  --sb-navy-50: #eef0f7;
+  --sb-navy-100: #d5dae9;
+  --sb-navy-200: #abb3d1;
+  --sb-navy-300: #808db9;
+  --sb-navy-400: #556799;
+  --sb-navy-500: #2f4282;
+  --sb-navy-600: #1f2c69; /* PRIMARY — from logo */
+  --sb-navy-700: #182253;
+  --sb-navy-800: #11193d;
+  --sb-navy-900: #0a0f27;
+
+  /* ------- Accent: Sunbit Gray (from logo "Bit") ------- */
+  --sb-logo-gray: #7a7b7f;
+
+  /* ------- Neutrals (Slate) ------- */
+  --sb-slate-50: #f8fafc;
+  --sb-slate-100: #f1f5f9;
+  --sb-slate-200: #e2e8f0;
+  --sb-slate-300: #cbd5e1;
+  --sb-slate-400: #94a3b8;
+  --sb-slate-500: #64748b;
+  --sb-slate-600: #475569;
+  --sb-slate-700: #334155;
+  --sb-slate-800: #1e293b;
+  --sb-slate-900: #0f172a;
+
+  /* ------- Semantic ------- */
+  --sb-success-50: #ecfdf5;
+  --sb-success-500: #16a34a;
+  --sb-success-700: #15803d;
+
+  --sb-warning-50: #fef3c7;
+  --sb-warning-500: #d97706;
+  --sb-warning-700: #b45309;
+
+  --sb-danger-50: #fee2e2;
+  --sb-danger-500: #dc2626;
+  --sb-danger-700: #b91c1c;
+
+  --sb-info-50: #dbeafe;
+  --sb-info-500: #2563eb;
+  --sb-info-700: #1d4ed8;
+
+  /* ------- AI (Violet) — ai-coach / feedback domains ------- */
+  --sb-ai-50: #f3e8ff;
+  --sb-ai-500: #7c3aed;
+  --sb-ai-700: #6d28d9;
+
+  /* ------- Semantic Tokens (shadcn-compatible) ------- */
+  --background: var(--sb-slate-50);
+  --surface: #ffffff;
+  --surface-muted: var(--sb-slate-100);
+  --foreground: var(--sb-slate-900);
+  --foreground-muted: var(--sb-slate-500);
+  --foreground-subtle: var(--sb-slate-400);
+
+  --border: var(--sb-slate-200);
+  --border-strong: var(--sb-slate-300);
+  --ring: var(--sb-navy-600);
+
+  --primary: var(--sb-navy-600); /* #1F2C69 — brand */
+  --primary-fg: #ffffff;
+  --primary-hover: var(--sb-navy-700);
+  --primary-soft: var(--sb-navy-50);
+  --primary-soft-fg: var(--sb-navy-700);
+
+  --secondary: var(--sb-slate-100);
+  --secondary-fg: var(--sb-slate-900);
+
+  --muted: var(--sb-slate-100);
+  --muted-fg: var(--sb-slate-500);
+
+  --destructive: var(--sb-danger-500);
+  --destructive-fg: #ffffff;
+
+  /* ------- Typography ------- */
+  --font-sans: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-jp: 'Noto Sans JP', 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px; /* Enterprise dashboard default */
+  --fs-md: 15px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+  --fs-3xl: 28px;
+  --fs-4xl: 36px;
+  --fs-display: 48px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.65;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semi: 600;
+  --fw-bold: 700;
+
+  /* ------- Spacing (4px grid) ------- */
+  --sp-0: 0;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ------- Radius ------- */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-pill: 9999px;
+
+  /* ------- Shadow (elevation) ------- */
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  --shadow-2: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-3: 0 12px 32px -6px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--ring);
+
+  /* ------- Motion ------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+
+  /* ------- Layout ------- */
+  --sidebar-w: 240px;
+  --header-h: 56px;
+  --page-max: 1440px;
+}
+
+/* ==========================================================================
+   Semantic Typography Classes
+   ========================================================================== */
+
+html,
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 0;
+}
+
+body,
+p,
+li,
+td,
+th,
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-sans);
+}
+
+:lang(ja),
+.jp {
+  font-family: var(--font-jp);
+}
+
+/* Headings — use sparingly; most UI text is body */
+.h1,
+h1 {
+  font-family: var(--font-jp);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+.h2,
+h2 {
+  font-family: var(--font-jp);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+.h3,
+h3 {
+  font-family: var(--font-jp);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semi);
+  line-height: var(--lh-snug);
+}
+.h4,
+h4 {
+  font-family: var(--font-jp);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semi);
+  line-height: var(--lh-snug);
+}
+.eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+}
+.body {
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+.body-sm,
+.small {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--foreground-muted);
+}
+.caption {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: var(--foreground-muted);
+}
+.numeric,
+.num {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+.display {
+  font-family: var(--font-sans);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.mono,
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}

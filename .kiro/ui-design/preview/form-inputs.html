@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Form Inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.field{display:flex;flex-direction:column;gap:6px}
+label{font-size:12px;font-weight:500;color:var(--foreground)}
+.hint{font-size:11px;color:var(--foreground-muted)}
+.input,.textarea,.select{font-family:var(--font-jp);font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:#fff;color:var(--foreground);outline:none}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(232,150,43,0.15)}
+.textarea{min-height:68px;resize:vertical;line-height:1.5}
+.err{border-color:var(--sb-danger-500)}
+.err-msg{font-size:11px;color:var(--sb-danger-700)}
+.check{display:flex;align-items:center;gap:8px;font-size:13px}
+.box{width:16px;height:16px;border:1.5px solid var(--border-strong);border-radius:3px;display:inline-flex;align-items:center;justify-content:center;background:#fff}
+.box.on{background:var(--primary);border-color:var(--primary);color:#fff;font-size:11px;font-weight:700}
+</style></head><body>
+<div class="grid">
+  <div class="field">
+    <label>評価サイクル名</label>
+    <input class="input" value="2026年度上期 360度評価">
+  </div>
+  <div class="field">
+    <label>最低評価者数</label>
+    <input class="input" value="3" style="max-width:100px">
+    <div class="hint">デフォルト: 3名</div>
+  </div>
+  <div class="field" style="grid-column:1/-1">
+    <label>評価コメント</label>
+    <textarea class="textarea">具体的なエピソードを記述してください...</textarea>
+  </div>
+  <div class="field">
+    <label>対象部署</label>
+    <select class="select"><option>プロダクト本部</option></select>
+  </div>
+  <div class="field">
+    <label>メールアドレス</label>
+    <input class="input err" value="invalid">
+    <div class="err-msg">正しい形式で入力してください</div>
+  </div>
+  <div class="check" style="grid-column:1/-1"><span class="box on">✓</span>上長承認を必須にする</div>
+</div>
+</body></html>

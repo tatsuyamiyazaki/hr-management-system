@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Icons</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+body{margin:0;padding:20px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:10px}
+.ic{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1px solid var(--border);border-radius:var(--radius-md)}
+.ic i{color:var(--foreground);width:22px;height:22px}
+.lbl{font-size:9px;color:var(--foreground-muted);font-family:var(--font-mono)}
+.h{grid-column:1 / -1;font-size:10px;color:var(--foreground-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-top:6px}
+.h:first-child{margin-top:0}
+</style></head><body>
+<div class="grid">
+  <div class="h">Lucide — domain icons</div>
+  <div class="ic"><i data-lucide="layout-dashboard"></i><span class="lbl">dashboard</span></div>
+  <div class="ic"><i data-lucide="users"></i><span class="lbl">users</span></div>
+  <div class="ic"><i data-lucide="building-2"></i><span class="lbl">org</span></div>
+  <div class="ic"><i data-lucide="target"></i><span class="lbl">goal</span></div>
+  <div class="ic"><i data-lucide="scan-face"></i><span class="lbl">360°</span></div>
+  <div class="ic"><i data-lucide="messages-square"></i><span class="lbl">1on1</span></div>
+  <div class="ic"><i data-lucide="sparkles"></i><span class="lbl">ai</span></div>
+  <div class="ic"><i data-lucide="bell"></i><span class="lbl">notify</span></div>
+  <div class="ic"><i data-lucide="scale"></i><span class="lbl">appeal</span></div>
+  <div class="ic"><i data-lucide="shield-check"></i><span class="lbl">audit</span></div>
+  <div class="ic"><i data-lucide="compass"></i><span class="lbl">career</span></div>
+  <div class="ic"><i data-lucide="bar-chart-3"></i><span class="lbl">chart</span></div>
+  <div class="ic"><i data-lucide="settings"></i><span class="lbl">settings</span></div>
+  <div class="ic"><i data-lucide="search"></i><span class="lbl">search</span></div>
+  <div class="ic"><i data-lucide="flag"></i><span class="lbl">flag</span></div>
+  <div class="ic"><i data-lucide="circle-check-big"></i><span class="lbl">done</span></div>
+  <div class="ic"><i data-lucide="clock"></i><span class="lbl">time</span></div>
+  <div class="ic"><i data-lucide="user-check"></i><span class="lbl">approve</span></div>
+  <div class="ic"><i data-lucide="mail"></i><span class="lbl">mail</span></div>
+  <div class="ic"><i data-lucide="file-text"></i><span class="lbl">doc</span></div>
+</div>
+<script>lucide.createIcons();</script>
+</body></html>

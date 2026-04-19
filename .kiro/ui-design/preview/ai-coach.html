@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>AI Coach</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:20px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.chat{border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;background:#fff}
+.msg{display:flex;gap:10px;margin-bottom:12px}
+.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;flex-shrink:0}
+.ai{background:var(--sb-ai-500)}
+.user{background:var(--sb-navy-600)}
+.bubble{font-size:13px;padding:10px 12px;border-radius:10px;max-width:480px;line-height:1.5}
+.b-ai{background:var(--sb-ai-50);color:var(--sb-slate-800)}
+.b-user{background:var(--sb-slate-100);color:var(--sb-slate-800)}
+.gate{display:flex;gap:8px;margin-top:12px;padding:10px 12px;border-radius:var(--radius-md);background:var(--sb-success-50);border:1px solid var(--sb-success-500);color:var(--sb-success-700);font-size:12px;font-weight:500;align-items:center}
+.gate .dot{width:8px;height:8px;border-radius:50%;background:var(--sb-success-500)}
+</style></head><body>
+<div class="chat">
+  <div class="msg"><span class="av ai">AI</span><div class="bubble b-ai">評価対象者について、具体的なエピソードを1つ教えていただけますか？「協調性が高い」だけでは、相手に伝わりにくいです。</div></div>
+  <div class="msg"><span class="av user">私</span><div class="bubble b-user">3月のプロジェクトでスケジュール遅延が発生した際、メンバーの担当を調整しながら自ら残タスクを巻き取ってくれました。</div></div>
+  <div class="msg"><span class="av ai">AI</span><div class="bubble b-ai">ありがとうございます。価値観「チームワーク」との関連性が明確になりました。もう少し、相手にどのような影響があったかを加えるとさらに伝わります。</div></div>
+  <div class="gate"><span class="dot"></span>品質ゲート通過 — 評価を送信できます</div>
+</div>
+</body></html>

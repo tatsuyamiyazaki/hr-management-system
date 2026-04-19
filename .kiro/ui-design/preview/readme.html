@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Sunbit HR — README</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:32px 40px;background:#fff;width:900px;font-family:var(--font-jp);color:var(--foreground);line-height:1.7;font-size:14px}
+h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-0.01em}
+.sub{color:var(--foreground-muted);font-size:13px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+h2{font-size:16px;font-weight:700;margin:28px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:13px;font-weight:600;color:var(--sb-navy-700);margin:18px 0 8px;text-transform:uppercase;letter-spacing:0.04em}
+p{margin:0 0 10px}
+ul{margin:0 0 12px;padding-left:20px}
+li{margin-bottom:4px}
+code{background:var(--sb-slate-100);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);font-size:12px;color:var(--sb-navy-700)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.card{border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:var(--sb-slate-50)}
+.card h3{margin-top:0}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,0.06)}
+.role{display:grid;grid-template-columns:120px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.role:last-child{border:none}
+.role b{color:var(--sb-navy-600);font-family:var(--font-sans);font-size:12px;letter-spacing:0.04em}
+.logo-row{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+.logo-row img{height:36px}
+.callout{background:var(--sb-navy-50);border-left:3px solid var(--sb-navy-600);padding:10px 14px;font-size:13px;color:var(--sb-navy-700);border-radius:0 6px 6px 0;margin:12px 0}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--sb-slate-100);color:var(--sb-slate-700);margin-right:4px;font-family:var(--font-sans)}
+.tag.navy{background:var(--sb-navy-50);color:var(--sb-navy-700)}
+</style>
+</head>
+<body>
+
+<div class="logo-row">
+  <img src="../assets/logo.png">
+  <div>
+    <h1 style="margin:0">Sunbit HR Design System</h1>
+    <div style="color:var(--foreground-muted);font-size:12px;margin-top:2px">SUNBIT Inc. 人事管理プラットフォーム</div>
+  </div>
+</div>
+
+<div class="sub">
+スキル管理・360度評価・目標管理・1on1・キャリア管理を一元化する日本語ファーストのエンタープライズ HR プラットフォーム向けデザインシステム。
+</div>
+
+<h2>プロダクト概要</h2>
+<p>SUNBIT Inc. は、組織課題（組織体制・人材配置・人事評価）を一元管理する HR プラットフォームを提供する。AI を活用したコーチング機能付き 360 度評価により、フィードバック文化の醸成と社員の継続的成長を支援する。</p>
+
+<h3>ユーザーロール</h3>
+<div class="role"><b>ADMIN</b><span>等級マスタ・ウェイト設定・監査ログ監視・AI コスト管理</span></div>
+<div class="role"><b>HR_MANAGER</b><span>評価サイクルの設定・進捗モニタリング・総合評価の確定・異議申立ての審査</span></div>
+<div class="role"><b>MANAGER</b><span>部下の目標承認・1on1 ログ蓄積・AI 対話で高品質フィードバック入力</span></div>
+<div class="role"><b>EMPLOYEE</b><span>自己評価・ピア評価・キャリア希望表明・FB 受領・異議申立て</span></div>
+
+<h3>差別化ポイント</h3>
+<ul>
+  <li><b>ピア主導の 360 度評価</b>: 「誰を評価するか」を社員自身が選び、最低評価者数で匿名性と統計的信頼性を両立</li>
+  <li><b>AI 品質ゲート</b>: 品質基準を満たすまで評価送信をブロックし、建設的フィードバックを自動担保</li>
+  <li><b>マイルド化変換</b>: ネガティブ表現を AI が建設的な表現に変換</li>
+  <li><b>評価者インセンティブ</b>: 評価行動自体を評価に加算</li>
+</ul>
+
+<h2>コンテンツ・ファンダメンタル</h2>
+<div class="grid">
+  <div class="card">
+    <h3>言語・トーン</h3>
+    完全日本語（Phase 1）、敬体（です・ます）基本。信頼・透明・落ち着き。過度な感情表現を避け、AI コーチング文脈では提案型で書く。
+  </div>
+  <div class="card">
+    <h3>敬称・人称</h3>
+    「自分」「あなた」より役職・ロール名を優先（例: 評価対象者、マネージャー、被評価者）。絵文字は原則不使用。感嘆符も控えめに。
+  </div>
+</div>
+
+<h2>ビジュアル・ファンダメンタル</h2>
+
+<h3>カラー</h3>
+<div>
+  <span class="tag navy"><span class="swatch" style="background:#1F2C69"></span>Sunbit Navy <code>#1F2C69</code> — Primary</span>
+  <span class="tag"><span class="swatch" style="background:#7A7B7F"></span>Logo Gray <code>#7A7B7F</code></span>
+  <span class="tag"><span class="swatch" style="background:#16A34A"></span>Success</span>
+  <span class="tag"><span class="swatch" style="background:#D97706"></span>Warning</span>
+  <span class="tag"><span class="swatch" style="background:#DC2626"></span>Danger</span>
+  <span class="tag"><span class="swatch" style="background:#2563EB"></span>Info</span>
+  <span class="tag"><span class="swatch" style="background:#7C3AED"></span>AI Violet</span>
+</div>
+
+<h3>タイポグラフィ</h3>
+<ul>
+  <li>日本語 UI 本文: <code>Noto Sans JP</code>（400/500/700）</li>
+  <li>欧文・数値: <code>Inter</code>（400/500/600/700）— tabular-nums 指定でダッシュボード用</li>
+  <li>モノスペース: <code>JetBrains Mono</code>（監査ログ・ID・コード）</li>
+</ul>
+
+<h3>レイアウト・形状</h3>
+<ul>
+  <li>サイドバー 240px + ヘッダー 56px + コンテンツ最大幅 1440px</li>
+  <li>カード: 白背景 + 1px Slate-200 境界線 + 8px 角丸 + elevation-1</li>
+  <li>角丸スケール: 4 / 6 / 8 / 12 / pill</li>
+  <li>シャドウ: 0 / 1 / 2 / 3 の 4 段階。Inner shadow は不使用</li>
+</ul>
+
+<h3>モーション・インタラクション</h3>
+<ul>
+  <li>Easing: <code>cubic-bezier(0.16, 1, 0.3, 1)</code> / Duration: 150/200/300ms</li>
+  <li>Hover: bg-muted へ / Active: scale(0.98) + 4% 暗色化 / Focus: Primary 2px ring</li>
+  <li>バウンス・グラスモルフィズム・装飾的グラデーションは使わない</li>
+</ul>
+
+<h2>アイコノグラフィ</h2>
+<p><b>Lucide Icons</b>（shadcn/ui デフォルト）を採用。ストローク 2px、24×24 viewBox。絵文字は UI 内で使用しない。Unicode の矢印（↗ ↑ ↓ ▲ ▼ ✓ ✗）のみ KPI 変化表示で許容。</p>
+<div class="callout">カスタムアイコンセットが将来定義された場合、Lucide をベースに同じストローク幅 2px を踏襲する。</div>
+
+<h2>ロゴ</h2>
+<p>公式ワードマークを <code>assets/logo.png</code>（701×298, 透明 PNG）に配置。Navy 背景では <code>filter: brightness(0) invert(1)</code> で反転して白単色として使う。Mark 単体（<code>logo-mark.svg</code>）はサイドバー・アプリアイコン・favicon 用。</p>
+
+<h2>ファイル索引</h2>
+<div class="grid">
+  <div class="card"><h3>ルート</h3>
+    <ul style="margin:0">
+      <li><code>README.md</code> — 本書</li>
+      <li><code>SKILL.md</code> — Claude Code 用スキル定義</li>
+      <li><code>colors_and_type.css</code> — デザイントークン</li>
+    </ul>
+  </div>
+  <div class="card"><h3>ディレクトリ</h3>
+    <ul style="margin:0">
+      <li><code>assets/</code> — ロゴ・画像</li>
+      <li><code>preview/</code> — プレビューカード</li>
+      <li><code>ui_kits/hr-app/</code> — HR アプリ UI キット</li>
+    </ul>
+  </div>
+</div>
+
+<h2>既知の制約</h2>
+<ul>
+  <li>本デザインシステムは <b>仕様書ベースの推定</b>。実 UI コードが無いため、実装着手後に同期が必要。</li>
+  <li>ロゴは PNG（ビットマップ）。ベクター版（SVG）が入手できたら差し替えを推奨。</li>
+  <li>フォントは Google Fonts 経由。社内指定フォントがあれば <code>fonts/</code> に配置して差し替え。</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Numeric Type</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{padding:16px;border:1px solid var(--border);border-radius:var(--radius-lg)}
+.k{font-size:11px;color:var(--foreground-muted);font-weight:500}
+.v{font-family:var(--font-sans);font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--foreground);line-height:1;margin-top:8px;letter-spacing:-0.02em}
+.d{font-size:11px;margin-top:6px}
+.up{color:var(--sb-success-700)}
+.dn{color:var(--sb-danger-700)}
+</style></head><body>
+<div class="grid">
+  <div class="card"><div class="k">評価完了率</div><div class="v">78.4%</div><div class="d up">↑ 12.3pt</div></div>
+  <div class="card"><div class="k">目標達成率</div><div class="v">64.2%</div><div class="d up">↑ 3.1pt</div></div>
+  <div class="card"><div class="k">社員数</div><div class="v">1,248</div><div class="d up">↑ 24</div></div>
+  <div class="card"><div class="k">AI月次コスト</div><div class="v">$892.4</div><div class="d dn">↑ 予算 80%</div></div>
+</div>
+</body></html>

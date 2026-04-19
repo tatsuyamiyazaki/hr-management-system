@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Spacing & Radius</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:20px;background:var(--surface);width:700px;font-family:var(--font-jp);display:flex;gap:24px}
+.col{flex:1}
+h4{margin:0 0 12px;font-size:11px;color:var(--foreground-muted);text-transform:uppercase;letter-spacing:0.08em}
+.sp-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-family:var(--font-mono);font-size:11px;color:var(--foreground-muted)}
+.sp-bar{background:var(--sb-navy-600);height:14px;border-radius:2px}
+.r-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.r-box{width:40px;height:40px;background:var(--sb-navy-100);border:1.5px solid var(--sb-navy-600)}
+.r-label{font-family:var(--font-mono);font-size:11px;color:var(--foreground-muted)}
+</style></head><body>
+<div class="col">
+  <h4>Spacing (4px grid)</h4>
+  <div class="sp-row"><span style="width:42px">sp-1</span><div class="sp-bar" style="width:4px"></div><span>4</span></div>
+  <div class="sp-row"><span style="width:42px">sp-2</span><div class="sp-bar" style="width:8px"></div><span>8</span></div>
+  <div class="sp-row"><span style="width:42px">sp-3</span><div class="sp-bar" style="width:12px"></div><span>12</span></div>
+  <div class="sp-row"><span style="width:42px">sp-4</span><div class="sp-bar" style="width:16px"></div><span>16</span></div>
+  <div class="sp-row"><span style="width:42px">sp-6</span><div class="sp-bar" style="width:24px"></div><span>24</span></div>
+  <div class="sp-row"><span style="width:42px">sp-8</span><div class="sp-bar" style="width:32px"></div><span>32</span></div>
+  <div class="sp-row"><span style="width:42px">sp-12</span><div class="sp-bar" style="width:48px"></div><span>48</span></div>
+</div>
+<div class="col">
+  <h4>Radius</h4>
+  <div class="r-row"><div class="r-box" style="border-radius:2px"></div><span class="r-label">xs — 2px</span></div>
+  <div class="r-row"><div class="r-box" style="border-radius:4px"></div><span class="r-label">sm — 4px (tags)</span></div>
+  <div class="r-row"><div class="r-box" style="border-radius:6px"></div><span class="r-label">md — 6px (buttons)</span></div>
+  <div class="r-row"><div class="r-box" style="border-radius:8px"></div><span class="r-label">lg — 8px (cards)</span></div>
+  <div class="r-row"><div class="r-box" style="border-radius:12px"></div><span class="r-label">xl — 12px (hero)</span></div>
+  <div class="r-row"><div class="r-box" style="border-radius:9999px"></div><span class="r-label">pill — avatars</span></div>
+</div>
+</body></html>

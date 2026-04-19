@@ -1,0 +1,16 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Logo</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp);display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.block{background:var(--sb-slate-50);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;min-height:100px}
+.block.dark{background:var(--sb-navy-600)}
+.block.dark .label{color:var(--sb-navy-100)}
+.label{font-size:11px;color:var(--foreground-muted);letter-spacing:0.06em}
+img.word{height:44px;width:auto}
+img.mark{height:44px;width:44px}
+</style></head><body>
+<div class="block"><img class="word" src="../assets/logo.png"><div class="label">ワードマーク — 明るい背景</div></div>
+<div class="block dark"><img class="word" src="../assets/logo.png" style="filter:brightness(0) invert(1)"><div class="label">ワードマーク — Navy反転</div></div>
+<div class="block"><img class="mark" src="../assets/logo-mark.svg"><div class="label">マーク単体 — アプリアイコン/favicon</div></div>
+<div class="block dark"><img class="mark" src="../assets/logo-mark.svg"><div class="label">マーク単体 — Navy背景</div></div>
+</body></html>

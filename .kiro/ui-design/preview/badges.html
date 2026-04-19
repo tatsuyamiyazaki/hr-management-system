@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Badges</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.b{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--radius-pill);line-height:1.3;justify-self:flex-start}
+.b::before{content:"";width:6px;height:6px;border-radius:50%}
+.draft{background:var(--sb-slate-100);color:var(--sb-slate-700)}
+.draft::before{background:var(--sb-slate-500)}
+.pending{background:#FEF3C7;color:var(--sb-warning-700)}
+.pending::before{background:var(--sb-warning-500)}
+.approved{background:var(--sb-success-50);color:var(--sb-success-700)}
+.approved::before{background:var(--sb-success-500)}
+.inprog{background:var(--sb-info-50);color:var(--sb-info-700)}
+.inprog::before{background:var(--sb-info-500)}
+.rejected{background:var(--sb-danger-50);color:var(--sb-danger-700)}
+.rejected::before{background:var(--sb-danger-500)}
+.ai{background:var(--sb-ai-50);color:var(--sb-ai-700)}
+.ai::before{background:var(--sb-ai-500)}
+.label{font-size:10px;color:var(--foreground-muted);text-transform:uppercase;letter-spacing:0.06em;grid-column:1 / -1;margin-top:8px;font-weight:600}
+.label:first-child{margin-top:0}
+</style></head><body>
+<div class="grid">
+  <div class="label">目標・評価ステータス</div>
+  <span class="b draft">下書き</span>
+  <span class="b pending">承認待ち</span>
+  <span class="b approved">承認済み</span>
+  <span class="b inprog">進行中</span>
+  <span class="b approved">完了</span>
+  <span class="b rejected">差し戻し</span>
+  <span class="b pending">期限3日前</span>
+  <span class="b rejected">期限超過</span>
+  <div class="label">評価サイクル・AI</div>
+  <span class="b draft">DRAFT</span>
+  <span class="b inprog">ACTIVE</span>
+  <span class="b pending">AGGREGATING</span>
+  <span class="b approved">FINALIZED</span>
+  <span class="b ai">AI品質OK</span>
+  <span class="b pending">AI検証中</span>
+  <span class="b rejected">統計的有意性不足</span>
+  <span class="b ai">マイルド化済</span>
+</div>
+</body></html>

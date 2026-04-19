@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Semantic Colors</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:20px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.card{padding:14px;border-radius:var(--radius-lg);border:1px solid var(--border)}
+.dot{width:36px;height:36px;border-radius:var(--radius-pill);margin-bottom:10px}
+.name{font-size:13px;font-weight:600;color:var(--foreground)}
+.use{font-size:11px;color:var(--foreground-muted);margin-top:2px}
+.hex{font-family:var(--font-mono);font-size:10px;color:var(--foreground-subtle);margin-top:6px}
+</style></head><body>
+<div class="grid">
+  <div class="card"><div class="dot" style="background:var(--sb-success-500)"></div><div class="name">Success</div><div class="use">承認・完了</div><div class="hex">#16A34A</div></div>
+  <div class="card"><div class="dot" style="background:var(--sb-warning-500)"></div><div class="name">Warning</div><div class="use">期限近・注意</div><div class="hex">#D97706</div></div>
+  <div class="card"><div class="dot" style="background:var(--sb-danger-500)"></div><div class="name">Danger</div><div class="use">エラー・異議</div><div class="hex">#DC2626</div></div>
+  <div class="card"><div class="dot" style="background:var(--sb-info-500)"></div><div class="name">Info</div><div class="use">通知・進行中</div><div class="hex">#2563EB</div></div>
+  <div class="card"><div class="dot" style="background:var(--sb-ai-500)"></div><div class="name">AI</div><div class="use">AIコーチ・変換</div><div class="hex">#7C3AED</div></div>
+</div>
+</body></html>

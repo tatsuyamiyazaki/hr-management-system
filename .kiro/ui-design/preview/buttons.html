@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+body{margin:0;padding:24px;background:var(--surface);width:700px;font-family:var(--font-jp)}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.lbl{width:90px;font-size:11px;color:var(--foreground-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600}
+.btn{font-family:var(--font-jp);font-size:13px;font-weight:500;padding:8px 14px;border-radius:var(--radius-md);border:1px solid transparent;cursor:pointer;transition:all var(--dur-fast) var(--ease-out);display:inline-flex;align-items:center;gap:6px;line-height:1.2}
+.primary{background:var(--primary);color:#fff}
+.primary:hover{background:var(--sb-navy-700)}
+.secondary{background:#fff;color:var(--foreground);border-color:var(--border)}
+.secondary:hover{background:var(--sb-slate-50);border-color:var(--border-strong)}
+.ghost{background:transparent;color:var(--foreground)}
+.ghost:hover{background:var(--sb-slate-100)}
+.destructive{background:var(--destructive);color:#fff}
+.ai{background:var(--sb-ai-500);color:#fff}
+.sm{padding:5px 10px;font-size:12px}
+.lg{padding:10px 18px;font-size:14px}
+.disabled{opacity:0.5;pointer-events:none}
+</style></head><body>
+<div class="row"><div class="lbl">Primary</div>
+  <button class="btn primary">評価を送信</button>
+  <button class="btn primary sm">保存</button>
+  <button class="btn primary lg">サイクルを確定</button>
+  <button class="btn primary disabled">送信（無効）</button>
+</div>
+<div class="row"><div class="lbl">Secondary</div>
+  <button class="btn secondary">キャンセル</button>
+  <button class="btn secondary">下書き保存</button>
+  <button class="btn ghost">戻る</button>
+</div>
+<div class="row"><div class="lbl">Semantic</div>
+  <button class="btn destructive">差し戻し</button>
+  <button class="btn ai">✨ AIで改善する</button>
+</div>
+</body></html>
