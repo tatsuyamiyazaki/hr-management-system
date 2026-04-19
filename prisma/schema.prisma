@@ -103,6 +103,14 @@ model User {
   anonymizedAt     DateTime?
 
   // Relations
+  profile         Profile?
+  passwordHistory PasswordHistory[]
+  sessions        Session[]
+  careerWishes    CareerWish[]
+  personalGoals   PersonalGoal[]
+  managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
+  employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
+  oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
   profile          Profile?
   passwordHistory  PasswordHistory[]
   sessions         Session[]
@@ -518,6 +526,7 @@ model GoalProgressHistory {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 1on1 管理 (Requirement 7.3, 7.4, 7.5)
 // 1on1 管理 (Requirement 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8)
 // ─────────────────────────────────────────────────────────────────────────────
 
