@@ -14,6 +14,7 @@ export const JOB_NAMES = [
   'anonymize-user',
   'ai-feedback-generation',
   'goal-deadline-alert',
+  'one-on-one-reminder',
 ] as const
 
 export type JobName = (typeof JOB_NAMES)[number]
@@ -55,6 +56,10 @@ export const jobPayloadSchema = {
   }),
 
   'goal-deadline-alert': z.object({
+    triggeredAt: z.string().datetime(),
+  }),
+
+  'one-on-one-reminder': z.object({
     triggeredAt: z.string().datetime(),
   }),
 } satisfies Record<JobName, z.ZodTypeAny>
