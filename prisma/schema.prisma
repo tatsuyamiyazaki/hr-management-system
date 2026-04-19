@@ -107,6 +107,7 @@ model User {
   passwordHistory PasswordHistory[]
   sessions        Session[]
   careerWishes    CareerWish[]
+  personalGoals   PersonalGoal[]
 
   @@index([emailHash])
   @@index([status])
@@ -405,4 +406,98 @@ model CareerWish {
   @@index([userId])
   @@index([userId, supersededAt])
   @@map("career_wishes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 目標管理 (Requirement 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum GoalType {
+  OKR
+  MBO
+}
+
+enum GoalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum GoalOwnerType {
+  ORGANIZATION
+  DEPARTMENT
+  TEAM
+}
+
+/// 組織目標 (Requirement 6.1)
+model OrgGoal {
+  id          String        @id @default(cuid())
+  parentId    String?
+  ownerType   GoalOwnerType
+  ownerId     String
+  title       String
+  description String?
+  goalType    GoalType
+  keyResult   String?
+  targetValue Float?
+  unit        String?
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  parent   OrgGoal?  @relation("OrgGoalTree", fields: [parentId], references: [id])
+  children OrgGoal[] @relation("OrgGoalTree")
+
+  @@index([parentId])
+  @@index([ownerId, ownerType])
+  @@map("org_goals")
+}
+
+/// 個人目標 (Requirement 6.2)
+model PersonalGoal {
+  id              String     @id @default(cuid())
+  userId          String
+  parentOrgGoalId String?
+  title           String
+  description     String?
+  goalType        GoalType
+  keyResult       String?
+  targetValue     Float?
+  unit            String?
+  status          GoalStatus @default(DRAFT)
+  startDate       DateTime
+  endDate         DateTime
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectedReason  String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progressHistory GoalProgressHistory[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([endDate])
+  @@map("personal_goals")
+}
+
+/// 目標進捗履歴 (Requirement 6.5)
+model GoalProgressHistory {
+  id           String   @id @default(cuid())
+  goalId       String
+  progressRate Int
+  comment      String?
+  recordedBy   String
+  recordedAt   DateTime @default(now())
+
+  goal PersonalGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, recordedAt])
+  @@map("goal_progress_history")
 }

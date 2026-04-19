@@ -13,6 +13,7 @@ export const JOB_NAMES = [
   'import-csv',
   'anonymize-user',
   'ai-feedback-generation',
+  'goal-deadline-alert',
 ] as const
 
 export type JobName = (typeof JOB_NAMES)[number]
@@ -51,6 +52,10 @@ export const jobPayloadSchema = {
     evaluationId: z.string().min(1),
     prompt: z.string().min(1),
     requestedBy: z.string().min(1),
+  }),
+
+  'goal-deadline-alert': z.object({
+    triggeredAt: z.string().datetime(),
   }),
 } satisfies Record<JobName, z.ZodTypeAny>
 
