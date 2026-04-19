@@ -113,6 +113,9 @@ model User {
   oneOnOneLogs         OneOnOneLog[]     @relation("OneOnOneLogRecorder")
   goalAchievements     GoalAchievement[]
   createdReviewCycles  ReviewCycle[]     @relation("ReviewCycleCreator")
+  evaluatorAssignments ReviewAssignment[] @relation("ReviewAssignmentEvaluator")
+  targetAssignments    ReviewAssignment[] @relation("ReviewAssignmentTarget")
+  replacementDeclines  ReviewDecline[]    @relation("ReviewDeclineReplacement")
 
   @@index([emailHash])
   @@index([status])
@@ -634,9 +637,56 @@ model ReviewCycle {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
-  creator User @relation("ReviewCycleCreator", fields: [createdBy], references: [id])
+  creator     User               @relation("ReviewCycleCreator", fields: [createdBy], references: [id])
+  assignments ReviewAssignment[]
 
   @@index([status])
   @@index([startDate, endDate])
   @@map("review_cycles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 評価対象者割り当て (Requirement 8.3, 8.4, 8.10, 8.11, 8.12)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssignmentStatus {
+  ACTIVE     // 有効な割り当て
+  DECLINED   // 辞退済み
+  REPLACED   // 代替評価者に引き継ぎ済み
+}
+
+/// 評価割り当て (Requirement 8.3, 8.4)
+/// evaluatorId が targetUserId を評価する
+model ReviewAssignment {
+  id           String           @id @default(cuid())
+  cycleId      String
+  evaluatorId  String           // 評価者
+  targetUserId String           // 評価対象者
+  status       AssignmentStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  cycle     ReviewCycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  evaluator User           @relation("ReviewAssignmentEvaluator", fields: [evaluatorId], references: [id])
+  target    User           @relation("ReviewAssignmentTarget",    fields: [targetUserId], references: [id])
+  decline   ReviewDecline?
+
+  @@unique([cycleId, evaluatorId, targetUserId])
+  @@index([cycleId, evaluatorId])
+  @@index([cycleId, targetUserId])
+  @@map("review_assignments")
+}
+
+/// 辞退・代替評価者レコード (Requirement 8.10, 8.11, 8.12)
+model ReviewDecline {
+  id                     String   @id @default(cuid())
+  assignmentId           String   @unique
+  reason                 String
+  replacementEvaluatorId String?  // 代替評価者（未定の場合 null）
+  declinedAt             DateTime @default(now())
+
+  assignment           ReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  replacementEvaluator User?            @relation("ReviewDeclineReplacement", fields: [replacementEvaluatorId], references: [id])
+
+  @@map("review_declines")
 }
