@@ -111,6 +111,12 @@ model User {
   managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
   employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
   oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
+  profile            Profile?
+  passwordHistory    PasswordHistory[]
+  sessions           Session[]
+  careerWishes       CareerWish[]
+  personalGoals      PersonalGoal[]
+  goalAchievements   GoalAchievement[]
 
   @@index([emailHash])
   @@index([status])
@@ -558,4 +564,40 @@ model OneOnOneLog {
   @@index([sessionId])
   @@index([recordedAt])
   @@map("one_on_one_logs")
+// 評価サイクル・目標達成率連携 (Requirement 6.9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 評価サイクル (Requirement 6.9)
+model EvaluationCycle {
+  id          String   @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  achievements GoalAchievement[]
+
+  @@index([endDate])
+  @@map("evaluation_cycles")
+}
+
+/// 目標達成率連携レコード (Requirement 6.9)
+/// 評価期間終了時に PersonalGoal の達成状況をスナップショットとして保存
+model GoalAchievement {
+  id              String   @id @default(cuid())
+  cycleId         String
+  goalId          String
+  userId          String
+  finalProgress   Int      // 最終進捗率 0-100
+  isCompleted     Boolean  // status === COMPLETED
+  achievementNote String?  // 定性評価コメント
+  linkedAt        DateTime @default(now())
+
+  cycle EvaluationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id])
+
+  @@unique([cycleId, goalId])
+  @@index([cycleId])
+  @@index([userId])
+  @@map("goal_achievements")
 }
