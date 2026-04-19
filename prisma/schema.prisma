@@ -111,6 +111,20 @@ model User {
   managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
   employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
   oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
+  profile          Profile?
+  passwordHistory  PasswordHistory[]
+  sessions         Session[]
+  careerWishes     CareerWish[]
+  personalGoals    PersonalGoal[]
+  managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
+  employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
+  oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
+  profile            Profile?
+  passwordHistory    PasswordHistory[]
+  sessions           Session[]
+  careerWishes       CareerWish[]
+  personalGoals      PersonalGoal[]
+  goalAchievements   GoalAchievement[]
 
   @@index([emailHash])
   @@index([status])
@@ -513,6 +527,8 @@ model GoalProgressHistory {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1on1 管理 (Requirement 7)
+// 1on1 管理 (Requirement 7.3, 7.4, 7.5)
+// 1on1 管理 (Requirement 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8)
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum OneOnOneVisibility {
@@ -520,6 +536,7 @@ enum OneOnOneVisibility {
   BOTH
 }
 
+/// 1on1 セッション (Requirement 7.1, 7.2)
 model OneOnOneSession {
   id          String   @id @default(cuid())
   managerId   String
@@ -540,6 +557,7 @@ model OneOnOneSession {
   @@map("one_on_one_sessions")
 }
 
+/// 1on1 ログ (Requirement 7.3, 7.4, 7.5)
 model OneOnOneLog {
   id          String             @id @default(cuid())
   sessionId   String
@@ -556,4 +574,40 @@ model OneOnOneLog {
   @@index([sessionId])
   @@index([recordedAt])
   @@map("one_on_one_logs")
+// 評価サイクル・目標達成率連携 (Requirement 6.9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 評価サイクル (Requirement 6.9)
+model EvaluationCycle {
+  id          String   @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  achievements GoalAchievement[]
+
+  @@index([endDate])
+  @@map("evaluation_cycles")
+}
+
+/// 目標達成率連携レコード (Requirement 6.9)
+/// 評価期間終了時に PersonalGoal の達成状況をスナップショットとして保存
+model GoalAchievement {
+  id              String   @id @default(cuid())
+  cycleId         String
+  goalId          String
+  userId          String
+  finalProgress   Int      // 最終進捗率 0-100
+  isCompleted     Boolean  // status === COMPLETED
+  achievementNote String?  // 定性評価コメント
+  linkedAt        DateTime @default(now())
+
+  cycle EvaluationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id])
+
+  @@unique([cycleId, goalId])
+  @@index([cycleId])
+  @@index([userId])
+  @@map("goal_achievements")
 }
