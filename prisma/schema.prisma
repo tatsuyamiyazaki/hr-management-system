@@ -103,28 +103,16 @@ model User {
   anonymizedAt     DateTime?
 
   // Relations
-  profile         Profile?
-  passwordHistory PasswordHistory[]
-  sessions        Session[]
-  careerWishes    CareerWish[]
-  personalGoals   PersonalGoal[]
-  managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
-  employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
-  oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
-  profile          Profile?
-  passwordHistory  PasswordHistory[]
-  sessions         Session[]
-  careerWishes     CareerWish[]
-  personalGoals    PersonalGoal[]
-  managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
-  employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
-  oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
-  profile            Profile?
-  passwordHistory    PasswordHistory[]
-  sessions           Session[]
-  careerWishes       CareerWish[]
-  personalGoals      PersonalGoal[]
-  goalAchievements   GoalAchievement[]
+  profile              Profile?
+  passwordHistory      PasswordHistory[]
+  sessions             Session[]
+  careerWishes         CareerWish[]
+  personalGoals        PersonalGoal[]
+  managedSessions      OneOnOneSession[] @relation("OneOnOneAsManager")
+  employeeSessions     OneOnOneSession[] @relation("OneOnOneAsEmployee")
+  oneOnOneLogs         OneOnOneLog[]     @relation("OneOnOneLogRecorder")
+  goalAchievements     GoalAchievement[]
+  createdReviewCycles  ReviewCycle[]     @relation("ReviewCycleCreator")
 
   @@index([emailHash])
   @@index([status])
@@ -574,6 +562,8 @@ model OneOnOneLog {
   @@index([sessionId])
   @@index([recordedAt])
   @@map("one_on_one_logs")
+}
+
 // 評価サイクル・目標達成率連携 (Requirement 6.9)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -610,4 +600,43 @@ model GoalAchievement {
   @@index([cycleId])
   @@index([userId])
   @@map("goal_achievements")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 360度評価サイクル管理 (Requirement 8.1, 8.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ReviewCycleStatus {
+  DRAFT
+  ACTIVE
+  AGGREGATING
+  PENDING_FEEDBACK_APPROVAL
+  FINALIZED
+  CLOSED
+}
+
+/// 360度評価サイクル (Requirement 8.1, 8.2)
+/// EvaluationCycle（目標達成率用）とは別物
+model ReviewCycle {
+  id           String            @id @default(cuid())
+  name         String
+  status       ReviewCycleStatus @default(DRAFT)
+  startDate    DateTime
+  endDate      DateTime
+  items        String[]
+  incentiveK   Float
+  minReviewers Int
+  maxTargets   Int
+  activatedAt  DateTime?
+  finalizedAt  DateTime?
+  closedAt     DateTime?
+  createdBy    String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  creator User @relation("ReviewCycleCreator", fields: [createdBy], references: [id])
+
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("review_cycles")
 }
