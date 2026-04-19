@@ -15,6 +15,7 @@ import { getEvaluationEventBus } from './evaluation-event-bus-di'
 import {
   EvaluationAlreadySubmittedError,
   EvaluationNotAssignedError,
+  type AnonymousEvaluationResponseRecord,
   type EvaluationResponseInput,
   type EvaluationResponseRecord,
   type EvaluationResponseType,
@@ -38,8 +39,11 @@ export interface EvaluationResponseService {
   /** 自分が提出した評価一覧 */
   listMyResponses(evaluatorId: string, cycleId: string): Promise<EvaluationResponseRecord[]>
 
-  /** 自分が受けた評価一覧（送信済みのみ） */
-  listReceivedResponses(targetUserId: string, cycleId: string): Promise<EvaluationResponseRecord[]>
+  /** 自分が受けた評価一覧（送信済みのみ・evaluatorId を除外した匿名DTO） */
+  listReceivedResponses(
+    targetUserId: string,
+    cycleId: string,
+  ): Promise<AnonymousEvaluationResponseRecord[]>
 
   /** HR_MANAGER 用: サイクル全体の評価一覧 */
   listByCycle(cycleId: string): Promise<EvaluationResponseRecord[]>
@@ -66,6 +70,19 @@ function toRecord(row: PrismaResponseRow): EvaluationResponseRecord {
     id: row.id,
     cycleId: row.cycleId,
     evaluatorId: row.evaluatorId,
+    targetUserId: row.targetUserId,
+    responseType: row.responseType as EvaluationResponseType,
+    score: row.score,
+    comment: row.comment,
+    submittedAt: row.submittedAt,
+    isDraft: row.isDraft,
+  }
+}
+
+function toAnonymousRecord(row: PrismaResponseRow): AnonymousEvaluationResponseRecord {
+  return {
+    id: row.id,
+    cycleId: row.cycleId,
     targetUserId: row.targetUserId,
     responseType: row.responseType as EvaluationResponseType,
     score: row.score,
@@ -207,12 +224,12 @@ class EvaluationResponseServiceImpl implements EvaluationResponseService {
   async listReceivedResponses(
     targetUserId: string,
     cycleId: string,
-  ): Promise<EvaluationResponseRecord[]> {
+  ): Promise<AnonymousEvaluationResponseRecord[]> {
     const rows = await this.db.evaluationResponse.findMany({
       where: { cycleId, targetUserId, isDraft: false },
       orderBy: { submittedAt: 'asc' },
     })
-    return rows.map(toRecord)
+    return rows.map(toAnonymousRecord)
   }
 
   async listByCycle(cycleId: string): Promise<EvaluationResponseRecord[]> {
