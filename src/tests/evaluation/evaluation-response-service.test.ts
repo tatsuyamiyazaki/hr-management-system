@@ -324,6 +324,24 @@ describe('EvaluationResponseService', () => {
         }),
       )
     })
+
+    it('受けた評価一覧には evaluatorId が含まれない（匿名性保証 Req 8.7, 20.6）', async () => {
+      // Arrange
+      const submittedRecord = makeResponseRecord({
+        id: 'resp-3',
+        evaluatorId: 'secret-evaluator-id',
+        isDraft: false,
+      })
+      const db = makePrisma({ findManyResult: [submittedRecord] })
+      const svc = createEvaluationResponseService(db as never)
+
+      // Act
+      const result = await svc.listReceivedResponses('user-target', 'cycle-1')
+
+      // Assert
+      expect(result).toHaveLength(1)
+      expect(result[0]).not.toHaveProperty('evaluatorId')
+    })
   })
 
   describe('listByCycle', () => {
