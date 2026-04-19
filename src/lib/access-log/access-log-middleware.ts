@@ -1,6 +1,12 @@
 import type { NextRequest } from 'next/server'
-import { createAccessLogRepository } from './access-log-repository'
 import type { AccessLogRepository } from './access-log-repository'
+
+// Edge Runtime では Prisma 非対応のため no-op をデフォルトとする
+// Node.js ルートから使う場合は createAccessLogRepository() を注入すること
+const noopRepository: AccessLogRepository = {
+  insert: () => Promise.resolve(),
+  findMany: () => Promise.resolve({ data: [], total: 0 }),
+}
 
 type NextFn = (req: NextRequest) => Promise<Response>
 
@@ -25,7 +31,7 @@ function extractRequestId(req: NextRequest): string {
  * /api/** パスのみ記録し、fire-and-forget で非同期に書き込む（Requirement 17.6）
  */
 export function createAccessLogMiddleware(repo?: AccessLogRepository): AccessLogMiddleware {
-  const repository = repo ?? createAccessLogRepository()
+  const repository = repo ?? noopRepository
 
   return async (req: NextRequest, next: NextFn): Promise<Response> => {
     const path = req.nextUrl.pathname

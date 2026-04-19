@@ -4,11 +4,8 @@ const nextConfig: NextConfig = {
   // React Strict Mode for development best practices
   reactStrictMode: true,
 
-  // Experimental features for Next.js 15
-  experimental: {
-    // Type-safe environment variables
-    typedRoutes: true,
-  },
+  // Type-safe routes (moved from experimental in Next.js 15)
+  typedRoutes: true,
 }
 
 export default nextConfig

@@ -10,6 +10,9 @@
  * - 動的 import にすることで Edge ビルドに影響を出さない
  */
 export async function register(): Promise<void> {
+  // TODO: 認証処理を一時的に無効化（開発用）— 有効化する際はこの return を削除する
+  return
+
   if (process.env.NEXT_RUNTIME !== 'nodejs') {
     return
   }
