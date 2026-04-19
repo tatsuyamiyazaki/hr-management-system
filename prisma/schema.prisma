@@ -108,6 +108,9 @@ model User {
   sessions        Session[]
   careerWishes    CareerWish[]
   personalGoals   PersonalGoal[]
+  managedSessions  OneOnOneSession[] @relation("OneOnOneAsManager")
+  employeeSessions OneOnOneSession[] @relation("OneOnOneAsEmployee")
+  oneOnOneLogs     OneOnOneLog[]     @relation("OneOnOneLogRecorder")
 
   @@index([emailHash])
   @@index([status])
@@ -506,4 +509,51 @@ model GoalProgressHistory {
 
   @@index([goalId, recordedAt])
   @@map("goal_progress_history")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1on1 管理 (Requirement 7.3, 7.4, 7.5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum OneOnOneVisibility {
+  MANAGER_ONLY
+  BOTH
+}
+
+model OneOnOneSession {
+  id          String   @id @default(cuid())
+  managerId   String
+  employeeId  String
+  scheduledAt DateTime
+  durationMin Int
+  agenda      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  manager  User          @relation("OneOnOneAsManager",  fields: [managerId],  references: [id])
+  employee User          @relation("OneOnOneAsEmployee", fields: [employeeId], references: [id])
+  logs     OneOnOneLog[]
+
+  @@index([managerId])
+  @@index([employeeId])
+  @@index([scheduledAt])
+  @@map("one_on_one_sessions")
+}
+
+model OneOnOneLog {
+  id          String             @id @default(cuid())
+  sessionId   String
+  agenda      String?
+  content     String
+  nextActions String?
+  visibility  OneOnOneVisibility @default(MANAGER_ONLY)
+  recordedBy  String
+  recordedAt  DateTime           @default(now())
+
+  session  OneOnOneSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  recorder User            @relation("OneOnOneLogRecorder", fields: [recordedBy], references: [id])
+
+  @@index([sessionId])
+  @@index([recordedAt])
+  @@map("one_on_one_logs")
 }
