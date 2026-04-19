@@ -106,6 +106,7 @@ model User {
   profile         Profile?
   passwordHistory PasswordHistory[]
   sessions        Session[]
+  careerWishes    CareerWish[]
 
   @@index([emailHash])
   @@index([status])
@@ -260,6 +261,7 @@ model RoleMaster {
   name              String                 @unique
   gradeId           String
   skillRequirements RoleSkillRequirement[]
+  careerWishes      CareerWish[]
 
   @@index([gradeId])
   @@map("role_masters")
@@ -380,4 +382,27 @@ model TransferRecord {
 
   @@index([userId, effectiveDate])
   @@map("transfer_records")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// キャリア希望管理 (Requirement 5.2, 5.6, 5.7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// キャリア希望 (Requirement 5.2)
+/// supersededAt が null のレコードが現在有効な希望。更新時に旧レコードに supersededAt をセットして履歴保持。
+model CareerWish {
+  id            String    @id @default(cuid())
+  userId        String
+  desiredRoleId String
+  desiredAt     DateTime
+  comment       String?
+  supersededAt  DateTime?
+  createdAt     DateTime  @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  desiredRole RoleMaster @relation(fields: [desiredRoleId], references: [id])
+
+  @@index([userId])
+  @@index([userId, supersededAt])
+  @@map("career_wishes")
 }
