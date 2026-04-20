@@ -16,11 +16,6 @@ import {
 } from '@/lib/skill/skill-route-helpers'
 import { getSkillService } from '@/lib/skill/skill-service-di'
 
-export {
-  setSkillServiceForTesting,
-  clearSkillServiceForTesting,
-} from '@/lib/skill/skill-service-di'
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response

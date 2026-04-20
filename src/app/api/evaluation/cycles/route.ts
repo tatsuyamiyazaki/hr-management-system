@@ -9,11 +9,6 @@ import { reviewCycleInputSchema } from '@/lib/evaluation/review-cycle-types'
 import { parseJsonBody, requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getReviewCycleService } from '@/lib/evaluation/review-cycle-service-di'
 
-export {
-  setReviewCycleServiceForTesting,
-  clearReviewCycleServiceForTesting,
-} from '@/lib/evaluation/review-cycle-service-di'
-
 const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

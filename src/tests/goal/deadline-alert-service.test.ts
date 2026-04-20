@@ -77,7 +77,7 @@ describe('DeadlineAlertService.scanDeadlineAlerts', () => {
       expect(result.skipped).toBe(0)
       const notifications = await notifRepo.listByUser('user-1')
       expect(notifications).toHaveLength(1)
-      expect(notifications[0].category).toBe('DEADLINE_ALERT')
+      expect(notifications[0]!.category).toBe('DEADLINE_ALERT')
     })
 
     it('残り3日・進捗30%の目標は通知される', async () => {
@@ -92,7 +92,7 @@ describe('DeadlineAlertService.scanDeadlineAlerts', () => {
       expect(result.notified).toBe(1)
       expect(result.skipped).toBe(0)
       const notifications = await notifRepo.listByUser('user-1')
-      expect(notifications[0].title).toContain('3日')
+      expect(notifications[0]!.title).toContain('3日')
     })
 
     it('残り1日・進捗49%の目標は通知される', async () => {
@@ -119,7 +119,7 @@ describe('DeadlineAlertService.scanDeadlineAlerts', () => {
       // Assert
       expect(result.notified).toBe(1)
       const notifications = await notifRepo.listByUser('user-1')
-      expect(notifications[0].title).toContain('本日')
+      expect(notifications[0]!.title).toContain('本日')
     })
   })
 
@@ -227,7 +227,7 @@ describe('DeadlineAlertService.scanDeadlineAlerts', () => {
         makeGoal({ id: 'g12', endDate: daysLater(3), latestProgressRate: 30 }), // 通知
         makeGoal({ id: 'g13', endDate: daysLater(3), latestProgressRate: 60 }), // スキップ（進捗50%以上）
         makeGoal({ id: 'g14', endDate: daysLater(5), latestProgressRate: 10 }), // スキップ（5日は対象外）
-        makeGoal({ id: 'g15', endDate: daysLater(1), latestProgressRate: 0 }),  // 通知
+        makeGoal({ id: 'g15', endDate: daysLater(1), latestProgressRate: 0 }), // 通知
       ]
       const { svc } = makeService(goals)
 

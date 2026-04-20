@@ -141,12 +141,12 @@ describe('OrganizationService.getCurrentTree', () => {
     const rootNode = tree.roots[0]
     expect(rootNode).toBeDefined()
     if (!rootNode) return
-    expect(rootNode.department.name).toBe('Root')
+    expect(rootNode.department!.name).toBe('Root')
     expect(rootNode.children).toHaveLength(1)
     const childNode = rootNode.children[0]
     expect(childNode).toBeDefined()
     if (!childNode) return
-    expect(childNode.department.name).toBe('Engineering')
+    expect(childNode.department!.name).toBe('Engineering')
     expect(childNode.positions).toHaveLength(1)
   })
 

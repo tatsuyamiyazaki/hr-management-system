@@ -8,8 +8,8 @@
  * - 401 / 403: 認証/認可エラー
  * - 503: サービス未初期化
  */
-import { getServerSession } from 'next-auth'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getAppSession, type AppSession } from '@/lib/auth/app-session'
 import {
   createOneOnOneReminderService,
   type OneOnOneReminderService,
@@ -20,18 +20,7 @@ import { createInMemoryNotificationRepository } from '@/lib/notification/notific
 // DI（テスト差し替え用）
 // ─────────────────────────────────────────────────────────────────────────────
 
-let _service: OneOnOneReminderService | null = null
-
-export function setAdminLogsServiceForTesting(s: OneOnOneReminderService): void {
-  _service = s
-}
-
-export function clearAdminLogsServiceForTesting(): void {
-  _service = null
-}
-
 function getService(): OneOnOneReminderService {
-  if (_service) return _service
   return createOneOnOneReminderService({
     subordinateRepo: {
       async findAllSubordinatesWithLastLog() {
@@ -56,9 +45,7 @@ function getService(): OneOnOneReminderService {
 
 const ALLOWED_ROLES = new Set(['ADMIN', 'HR_MANAGER'])
 
-function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
-): { ok: true } | { ok: false; response: NextResponse } {
+function authorize(serverSession: AppSession): { ok: true } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -75,7 +62,7 @@ function authorize(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   const auth = authorize(serverSession)
   if (!auth.ok) return auth.response
 

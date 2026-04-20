@@ -15,11 +15,6 @@ import {
 import { PasswordPolicyViolationError } from '@/lib/auth/auth-types'
 import { getInvitationService } from '@/lib/auth/invitation-service-di'
 
-export {
-  setInvitationServiceForTesting,
-  clearInvitationServiceForTesting,
-} from '@/lib/auth/invitation-service-di'
-
 const acceptBodySchema = z.object({
   password: z.string().min(1),
 })

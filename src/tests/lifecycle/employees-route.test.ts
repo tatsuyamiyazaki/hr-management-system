@@ -20,8 +20,9 @@ vi.mock('next-auth', () => ({
 const { getServerSession } = await import('next-auth')
 const mockedGetServerSession = vi.mocked(getServerSession)
 
-const { POST, setLifecycleServiceForTesting, clearLifecycleServiceForTesting } =
-  await import('@/app/api/lifecycle/employees/route')
+const { POST } = await import('@/app/api/lifecycle/employees/route')
+const { setLifecycleServiceForTesting, clearLifecycleServiceForTesting } =
+  await import('@/lib/lifecycle/lifecycle-service-di')
 
 const VALID_BODY = {
   email: 'alice@example.com',

@@ -1,22 +1,17 @@
 /**
- * Task 6.5 / Req 1.10: ユーザー招待 API
+ * Task 6.5 / Req 1.10: 繝ｦ繝ｼ繧ｶ繝ｼ諡帛ｾ・API
  *
  * POST /api/users
- * - ADMIN のみ実行可能
- * - email / role を受け取り招待メールを送信する
+ * - ADMIN 縺ｮ縺ｿ螳溯｡悟庄閭ｽ
+ * - email / role 繧貞女縺大叙繧頑魚蠕・Γ繝ｼ繝ｫ繧帝∽ｿ｡縺吶ｋ
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import { inviteUserInputSchema, EmailAlreadyExistsError } from '@/lib/auth/invitation-types'
 import { getInvitationService } from '@/lib/auth/invitation-service-di'
 
-export {
-  setInvitationServiceForTesting,
-  clearInvitationServiceForTesting,
-} from '@/lib/auth/invitation-service-di'
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

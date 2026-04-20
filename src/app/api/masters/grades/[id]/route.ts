@@ -15,11 +15,6 @@ import {
 } from '@/lib/master/master-route-helpers'
 import { getMasterService } from '@/lib/master/master-service-di'
 
-export {
-  setMasterServiceForTesting,
-  clearMasterServiceForTesting,
-} from '@/lib/master/master-service-di'
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAccessLogMiddleware } from '@/lib/access-log/access-log-middleware'
 import type { NextRequest } from 'next/server'
+import type { AccessLogRepository } from '@/lib/access-log/access-log-repository'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks
@@ -9,11 +10,12 @@ import type { NextRequest } from 'next/server'
 const mockEmit = vi.fn()
 const mockNext = vi.fn()
 
-vi.mock('@/lib/access-log/access-log-repository', () => ({
-  createAccessLogRepository: vi.fn(() => ({
+function makeRepository(): AccessLogRepository {
+  return {
     insert: mockEmit,
-  })),
-}))
+    findMany: vi.fn(),
+  } as unknown as AccessLogRepository
+}
 
 function makeRequest(
   options: {
@@ -57,7 +59,7 @@ describe('createAccessLogMiddleware', () => {
   })
 
   it('should call next() and return the response', async () => {
-    const middleware = createAccessLogMiddleware()
+    const middleware = createAccessLogMiddleware(makeRepository())
     const req = makeRequest()
     const response = makeResponse(200)
     mockNext.mockResolvedValue(response)
@@ -69,7 +71,7 @@ describe('createAccessLogMiddleware', () => {
   })
 
   it('should record method, path, statusCode, ipAddress, userAgent', async () => {
-    const middleware = createAccessLogMiddleware()
+    const middleware = createAccessLogMiddleware(makeRepository())
     const req = makeRequest({
       method: 'POST',
       path: '/api/users',
@@ -92,7 +94,7 @@ describe('createAccessLogMiddleware', () => {
   })
 
   it('should record durationMs as a non-negative number', async () => {
-    const middleware = createAccessLogMiddleware()
+    const middleware = createAccessLogMiddleware(makeRepository())
     const req = makeRequest()
     mockNext.mockResolvedValue(makeResponse(200))
 
@@ -109,7 +111,7 @@ describe('createAccessLogMiddleware', () => {
 
   it('should not throw when repository insert fails (fire-and-forget)', async () => {
     mockEmit.mockRejectedValue(new Error('DB error'))
-    const middleware = createAccessLogMiddleware()
+    const middleware = createAccessLogMiddleware(makeRepository())
     const req = makeRequest()
     mockNext.mockResolvedValue(makeResponse(200))
 
@@ -117,7 +119,7 @@ describe('createAccessLogMiddleware', () => {
   })
 
   it('should only log /api/** paths', async () => {
-    const middleware = createAccessLogMiddleware()
+    const middleware = createAccessLogMiddleware(makeRepository())
     const req = makeRequest({ path: '/_next/static/chunk.js' })
     mockNext.mockResolvedValue(makeResponse(200))
 

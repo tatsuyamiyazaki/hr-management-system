@@ -15,11 +15,6 @@ import {
 import { getEvaluationEventBus } from '@/lib/evaluation/evaluation-event-bus-di'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 
-export {
-  setEvaluationEventBusForTesting,
-  clearEvaluationEventBusForTesting,
-} from '@/lib/evaluation/evaluation-event-bus-di'
-
 // リクエストボディのスキーマ（name のみ先に検証）
 const requestBodySchema = z.object({
   name: z.enum(EVALUATION_EVENT_NAMES),

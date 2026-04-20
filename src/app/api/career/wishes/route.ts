@@ -6,16 +6,8 @@
  */
 import { type NextRequest, NextResponse } from 'next/server'
 import { careerWishInputSchema } from '@/lib/career/career-wish-types'
-import {
-  parseJsonBody,
-  requireAuthenticated,
-} from '@/lib/skill/skill-route-helpers'
+import { parseJsonBody, requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getCareerWishService } from '@/lib/career/career-wish-service-di'
-
-export {
-  setCareerWishServiceForTesting,
-  clearCareerWishServiceForTesting,
-} from '@/lib/career/career-wish-service-di'
 
 const HR_MANAGER_OR_ABOVE: readonly string[] = ['HR_MANAGER', 'ADMIN']
 

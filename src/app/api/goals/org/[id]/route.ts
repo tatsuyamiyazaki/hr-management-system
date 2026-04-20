@@ -1,21 +1,21 @@
 /**
- * Issue #42 / Task 13.1: 組織目標 個別取得 API (Req 6.1, 6.2)
+ * Issue #42 / Task 13.1: 邨・ｹ皮岼讓・蛟句挨蜿門ｾ・API (Req 6.1, 6.2)
  *
- * - GET /api/goals/org/[id] — 個別取得（認証済みユーザー全員）
+ * - GET /api/goals/org/[id] 窶・蛟句挨蜿門ｾ暦ｼ郁ｪ崎ｨｼ貂医∩繝ｦ繝ｼ繧ｶ繝ｼ蜈ｨ蜩｡・・
  */
 import { type NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { GoalNotFoundError } from '@/lib/goal/goal-types'
 import { getOrgGoalService } from '@/lib/goal/org-goal-service-di'
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Auth helper
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 async function requireAuthenticated(): Promise<
   { ok: true } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -26,9 +26,9 @@ async function requireAuthenticated(): Promise<
   return { ok: true }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // GET /api/goals/org/[id]
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function GET(
   _request: NextRequest,

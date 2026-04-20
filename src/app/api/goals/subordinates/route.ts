@@ -7,11 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireManager } from '@/lib/skill/skill-route-helpers'
 import { getGoalProgressService } from '@/lib/goal/goal-progress-service-di'
 
-export {
-  setGoalProgressServiceForTesting,
-  clearGoalProgressServiceForTesting,
-} from '@/lib/goal/goal-progress-service-di'
-
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   const guard = await requireManager()
   if (!guard.ok) return guard.response

@@ -13,11 +13,6 @@ import {
 } from '@/lib/organization/organization-route-helpers'
 import { getOrganizationService } from '@/lib/organization/organization-service-di'
 
-export {
-  setOrganizationServiceForTesting,
-  clearOrganizationServiceForTesting,
-} from '@/lib/organization/organization-service-di'
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireHrManager()
   if (!guard.ok) return guard.response

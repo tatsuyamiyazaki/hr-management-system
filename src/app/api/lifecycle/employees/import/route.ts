@@ -1,22 +1,17 @@
 /**
- * Issue #29 / Req 14.9: 社員 CSV 一括インポート API
+ * Issue #29 / Req 14.9: 遉ｾ蜩｡ CSV 荳諡ｬ繧､繝ｳ繝昴・繝・API
  *
  * POST /api/lifecycle/employees/import
- * - ADMIN または HR_MANAGER のみ実行可能
- * - multipart/form-data で `file` フィールド（CSV）を受け取る
- * - BulkImportResult を返却
- *   - 全件成功: 201
- *   - 部分失敗: 207 Multi-Status
- * - 422 / 413 / 401 / 403 / 503 は共通
+ * - ADMIN 縺ｾ縺溘・ HR_MANAGER 縺ｮ縺ｿ螳溯｡悟庄閭ｽ
+ * - multipart/form-data 縺ｧ `file` 繝輔ぅ繝ｼ繝ｫ繝会ｼ・SV・峨ｒ蜿励￠蜿悶ｋ
+ * - BulkImportResult 繧定ｿ泌唆
+ *   - 蜈ｨ莉ｶ謌仙粥: 201
+ *   - 驛ｨ蛻・､ｱ謨・ 207 Multi-Status
+ * - 422 / 413 / 401 / 403 / 503 縺ｯ蜈ｱ騾・
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLifecycleService } from '@/lib/lifecycle/lifecycle-service-di'
-
-export {
-  setLifecycleServiceForTesting,
-  clearLifecycleServiceForTesting,
-} from '@/lib/lifecycle/lifecycle-service-di'
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024 // 5MB
 const ALLOWED_ROLES = new Set<string>(['ADMIN', 'HR_MANAGER'])
@@ -28,7 +23,7 @@ interface AuthorizedSession {
 }
 
 function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
+  serverSession: Awaited<ReturnType<typeof getAppSession>>,
 ): { ok: true; session: AuthorizedSession } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -80,7 +75,7 @@ async function extractCsvFile(
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const auth = authorize(await getServerSession())
+  const auth = authorize(await getAppSession())
   if (!auth.ok) return auth.response
 
   const fileResult = await extractCsvFile(request)

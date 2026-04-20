@@ -108,12 +108,16 @@ function buildTree(
 
   const positionsByDept = new Map<string, Position[]>()
   for (const pos of positions) {
+    if (!pos.departmentId) continue
     const list = positionsByDept.get(pos.departmentId) ?? []
     list.push(pos)
     positionsByDept.set(pos.departmentId, list)
   }
 
   const buildNode = (dept: Department): OrgNode => ({
+    id: dept.id,
+    name: dept.name,
+    parentId: dept.parentId,
     department: dept,
     positions: positionsByDept.get(dept.id) ?? [],
     children: (byParent.get(dept.id) ?? []).map(buildNode),
@@ -235,7 +239,7 @@ function buildDepartmentParentMap(departments: ReadonlyMap<string, Department>):
 function buildSupervisorParentMap(positions: ReadonlyMap<string, Position>): ParentMap {
   const map = new Map<string, string | null>()
   for (const [id, pos] of positions) {
-    map.set(id, pos.supervisorPositionId)
+    map.set(id, pos.supervisorPositionId ?? null)
   }
   return map
 }

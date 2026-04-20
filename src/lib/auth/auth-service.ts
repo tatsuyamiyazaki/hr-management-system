@@ -11,7 +11,7 @@
  * 認証失敗は常に InvalidCredentialsError に丸め、ユーザー存在有無の漏洩を防ぐ。
  * ロック中アカウントのみ AccountLockedError を返し、解除時刻を呼び出し側に伝える。
  */
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { computeEmailHash } from '@/lib/shared/crypto'
 import {
   AccountLockedError,

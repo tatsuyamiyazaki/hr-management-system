@@ -69,12 +69,12 @@ describe('createNextAuthConfig', () => {
 
   it('authorize: 成功時に authService.login を呼んで user オブジェクトを返す', async () => {
     const session = makeSession()
-    const authService: AuthService = {
+    const authService = {
       login: vi.fn(async () => session),
       logout: vi.fn(async () => undefined),
       getSession: vi.fn(async () => session),
       touchSession: vi.fn(async () => session),
-    }
+    } as unknown as AuthService
     const config = createNextAuthConfig({ authService })
     const provider = extractCredentialsProvider(config.providers)
 

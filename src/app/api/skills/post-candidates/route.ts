@@ -10,11 +10,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getPostCandidateService } from '@/lib/skill/post-candidate-service-di'
 
-export {
-  setPostCandidateServiceForTesting,
-  clearPostCandidateServiceForTesting,
-} from '@/lib/skill/post-candidate-service-di'
-
 const HR_MANAGER_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 function isHrManagerOrAbove(role: string): boolean {

@@ -14,11 +14,6 @@ import {
 import { getOneOnOneLogService } from '@/lib/one-on-one/one-on-one-log-service-di'
 import { OneOnOneLogAccessDeniedError } from '@/lib/one-on-one/one-on-one-log-service'
 
-export {
-  setOneOnOneLogServiceForTesting,
-  clearOneOnOneLogServiceForTesting,
-} from '@/lib/one-on-one/one-on-one-log-service-di'
-
 interface RouteContext {
   params: Promise<{ sessionId: string }>
 }

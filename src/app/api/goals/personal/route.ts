@@ -9,11 +9,6 @@ import { personalGoalInputSchema } from '@/lib/goal/personal-goal-types'
 import { parseJsonBody, requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getPersonalGoalService } from '@/lib/goal/personal-goal-service-di'
 
-export {
-  setPersonalGoalServiceForTesting,
-  clearPersonalGoalServiceForTesting,
-} from '@/lib/goal/personal-goal-service-di'
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response
