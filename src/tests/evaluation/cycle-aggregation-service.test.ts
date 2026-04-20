@@ -158,16 +158,20 @@ describe('CycleAggregationService.checkEligibility', () => {
     const db = makePrisma({ users: [{ id: 'u1', hireDate: null }] })
     const svc = createCycleAggregationService(db as never)
     const result = await svc.checkEligibility('cycle-1', ['u1'])
-    expect(result[0].eligible).toBe(true)
-    expect(result[0].tenureRatio).toBeNull()
+    expect(result).toHaveLength(1)
+    const first = result[0]!
+    expect(first.eligible).toBe(true)
+    expect(first.tenureRatio).toBeNull()
   })
 
   it('サイクル開始前に入社したユーザーは eligible=true (tenureRatio=1)', async () => {
     const db = makePrisma({ users: [{ id: 'u1', hireDate: new Date('2025-12-01') }] })
     const svc = createCycleAggregationService(db as never)
     const result = await svc.checkEligibility('cycle-1', ['u1'])
-    expect(result[0].eligible).toBe(true)
-    expect(result[0].tenureRatio).toBe(1)
+    expect(result).toHaveLength(1)
+    const first = result[0]!
+    expect(first.eligible).toBe(true)
+    expect(first.tenureRatio).toBe(1)
   })
 
   it('在籍期間50%以上のユーザーは eligible=true (Req 8.18)', async () => {
@@ -175,8 +179,10 @@ describe('CycleAggregationService.checkEligibility', () => {
     const db = makePrisma({ users: [{ id: 'u1', hireDate: new Date('2026-02-14') }] })
     const svc = createCycleAggregationService(db as never)
     const result = await svc.checkEligibility('cycle-1', ['u1'])
-    expect(result[0].eligible).toBe(true)
-    expect(result[0].tenureRatio).toBeGreaterThanOrEqual(0.5)
+    expect(result).toHaveLength(1)
+    const first = result[0]!
+    expect(first.eligible).toBe(true)
+    expect(first.tenureRatio).toBeGreaterThanOrEqual(0.5)
   })
 
   it('在籍期間50%未満のユーザーは eligible=false (Req 8.18)', async () => {
@@ -184,8 +190,10 @@ describe('CycleAggregationService.checkEligibility', () => {
     const db = makePrisma({ users: [{ id: 'u1', hireDate: new Date('2026-03-01') }] })
     const svc = createCycleAggregationService(db as never)
     const result = await svc.checkEligibility('cycle-1', ['u1'])
-    expect(result[0].eligible).toBe(false)
-    expect(result[0].tenureRatio).toBeLessThan(0.5)
+    expect(result).toHaveLength(1)
+    const first = result[0]!
+    expect(first.eligible).toBe(false)
+    expect(first.tenureRatio).toBeLessThan(0.5)
   })
 })
 
