@@ -156,5 +156,5 @@ ${roleContext}
 ${comment}`
 }
 
-// テスト用にエクスポート
+// テスト用にエクスポート（テストで SYSTEM_PROMPT の内容を検証するため）
 export { SYSTEM_PROMPT }

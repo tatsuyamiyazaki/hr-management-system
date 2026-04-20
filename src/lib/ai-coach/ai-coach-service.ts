@@ -15,6 +15,7 @@ import {
   aiQualityResponseSchema,
   QUALITY_GATE_SLA_MS,
   QUALITY_GATE_TIMEOUT_MS,
+  type AIQualityResponse,
   type AITimeoutResult,
   type ValidateInput,
   type ValidateResult,
@@ -52,13 +53,15 @@ export interface AICoachServiceDeps {
 // AI レスポンスパーサー
 // ─────────────────────────────────────────────────────────────────────────────
 
+type ParseResult = { success: true; data: AIQualityResponse } | { success: false }
+
 /**
  * AI レスポンスの content から JSON をパースし、スキーマ検証を行う。
  * JSON ブロック (```json ... ```) 形式と直接 JSON 両方に対応する。
  */
-export function parseAIResponse(content: string): { success: true; data: { quality_ok: boolean; missing_aspects: string[]; suggestions: string } } | { success: false } {
+export function parseAIResponse(content: string): ParseResult {
   const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
-  const jsonText = (codeBlockMatch && codeBlockMatch[1]) ? codeBlockMatch[1] : content
+  const jsonText = codeBlockMatch?.[1] ?? content
 
   try {
     const parsed: unknown = JSON.parse(jsonText.trim())
