@@ -52,6 +52,7 @@ describe('IncentiveScoreCard rendering', () => {
   it('件数0の場合も正しく表示される', () => {
     const zeroScore = { evaluationCount: 0, cumulativeScore: 0 }
     const html = renderToString(<IncentiveScoreCard score={zeroScore} />)
+    expect(html).toContain('>0<')
     expect(html).toContain('0.0')
   })
 })

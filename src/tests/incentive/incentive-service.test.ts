@@ -53,6 +53,52 @@ function makeCycleKProvider(k: number | null = DEFAULT_K): CycleKProvider {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// InMemoryIncentiveRepository unit tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('InMemoryIncentiveRepository.findByCycleId', () => {
+  it('指定サイクルのレコードのみ返す', async () => {
+    const repo = new InMemoryIncentiveRepository()
+    const now = new Date()
+    await repo.save({
+      id: '1',
+      cycleId: 'cycle-A',
+      evaluatorId: 'user-1',
+      responseId: 'r1',
+      coefficientK: 1.0,
+      createdAt: now,
+    })
+    await repo.save({
+      id: '2',
+      cycleId: 'cycle-B',
+      evaluatorId: 'user-1',
+      responseId: 'r2',
+      coefficientK: 2.0,
+      createdAt: now,
+    })
+    await repo.save({
+      id: '3',
+      cycleId: 'cycle-A',
+      evaluatorId: 'user-2',
+      responseId: 'r3',
+      coefficientK: 1.0,
+      createdAt: now,
+    })
+
+    const result = await repo.findByCycleId('cycle-A')
+
+    expect(result).toHaveLength(2)
+    expect(result.map((r) => r.id)).toEqual(['1', '3'])
+  })
+
+  it('該当レコードがなければ空配列を返す', async () => {
+    const repo = new InMemoryIncentiveRepository()
+    const result = await repo.findByCycleId('nonexistent')
+    expect(result).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
