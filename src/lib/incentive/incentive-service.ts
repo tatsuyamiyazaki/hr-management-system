@@ -1,15 +1,22 @@
 /**
- * Issue #64 / Task 18.1: IncentiveService 実装
+ * Issue #64 / Task 18.1, 18.2: IncentiveService 実装
  *
  * - EvaluationSubmitted イベントを購読し applyIncentive を自動起動
  * - qualityGatePassed === true のみ加算対象（Req 11.6）
  * - responseId unique で重複加算防止（Req 11.1）
  * - 計算式: cumulativeScore = evaluationCount × k（Req 11.3）
+ * - getCumulativeScore: マイページ表示用（Req 11.4）
+ * - getAdjustmentForTotalEvaluation: 総合評価集計用（Req 11.5）
  *
- * 関連要件: Req 11.1, 11.2, 11.3, 11.6
+ * 関連要件: Req 11.1, 11.2, 11.3, 11.4, 11.5, 11.6
  */
 import type { EvaluationEventBus } from '@/lib/evaluation/evaluation-event-bus'
-import type { IncentiveRecord, IncentiveRepository, IncentiveService } from './incentive-types'
+import type {
+  IncentiveRecord,
+  IncentiveRepository,
+  IncentiveScore,
+  IncentiveService,
+} from './incentive-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dependencies
@@ -90,6 +97,25 @@ class IncentiveServiceImpl implements IncentiveService {
     }
 
     await this.repo.save(record)
+  }
+
+  async getCumulativeScore(userId: string, cycleId: string): Promise<IncentiveScore> {
+    const count = await this.repo.countByCycleAndEvaluator(cycleId, userId)
+    const k = await this.cycleKProvider.getIncentiveK(cycleId)
+    const cumulativeScore = k !== null ? count * k : 0
+    return { evaluationCount: count, cumulativeScore }
+  }
+
+  async getAdjustmentForTotalEvaluation(cycleId: string): Promise<Map<string, number>> {
+    const records = await this.repo.findByCycleId(cycleId)
+    const result = new Map<string, number>()
+
+    for (const record of records) {
+      const current = result.get(record.evaluatorId) ?? 0
+      result.set(record.evaluatorId, current + record.coefficientK)
+    }
+
+    return result
   }
 }
 

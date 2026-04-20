@@ -1,11 +1,13 @@
 /**
- * Issue #64 / Task 18.1: IncentiveService 単体テスト
+ * Issue #64 / Task 18.1, 18.2: IncentiveService 単体テスト
  *
  * テスト対象:
  * - qualityGatePassed=true のみ加算（Req 11.6）
  * - responseId unique で重複防止（Req 11.1）
  * - EvaluationSubmitted イベント経由での自動起動
  * - サイクルが存在しない場合は加算しない
+ * - getCumulativeScore: マイページ表示用（Req 11.4）
+ * - getAdjustmentForTotalEvaluation: 総合評価集計用（Req 11.5）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createIncentiveService, type CycleKProvider } from '@/lib/incentive/incentive-service'
@@ -29,6 +31,10 @@ class InMemoryIncentiveRepository implements IncentiveRepository {
 
   async countByCycleAndEvaluator(cycleId: string, evaluatorId: string): Promise<number> {
     return this.records.filter((r) => r.cycleId === cycleId && r.evaluatorId === evaluatorId).length
+  }
+
+  async findByCycleId(cycleId: string): Promise<IncentiveRecord[]> {
+    return this.records.filter((r) => r.cycleId === cycleId)
   }
 }
 
@@ -276,6 +282,168 @@ describe('IncentiveService', () => {
 
       // Assert
       expect(repo.records).toHaveLength(1)
+    })
+  })
+
+  describe('getCumulativeScore (Req 11.4)', () => {
+    it('評価実施件数と累積スコア（= count × k）を返す', async () => {
+      // Arrange
+      let callCount = 0
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider,
+        idFactory: () => `incentive-${++callCount}`,
+        clock: () => FIXED_NOW,
+      })
+
+      // 3件の評価を追加
+      await svc.applyIncentive({
+        responseId: 'resp-1',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+      await svc.applyIncentive({
+        responseId: 'resp-2',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+      await svc.applyIncentive({
+        responseId: 'resp-3',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+
+      // Act
+      const score = await svc.getCumulativeScore('user-1', 'cycle-1')
+
+      // Assert: count=3, score=3×1.5=4.5
+      expect(score.evaluationCount).toBe(3)
+      expect(score.cumulativeScore).toBe(4.5)
+    })
+
+    it('加算記録がない場合は0を返す', async () => {
+      // Arrange
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider,
+        idFactory: () => FIXED_ID,
+        clock: () => FIXED_NOW,
+      })
+
+      // Act
+      const score = await svc.getCumulativeScore('user-1', 'cycle-1')
+
+      // Assert
+      expect(score.evaluationCount).toBe(0)
+      expect(score.cumulativeScore).toBe(0)
+    })
+
+    it('サイクルが存在しない場合（k=null）はスコア0を返す', async () => {
+      // Arrange
+      const nullProvider = makeCycleKProvider(null)
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider: nullProvider,
+        idFactory: () => FIXED_ID,
+        clock: () => FIXED_NOW,
+      })
+
+      // Act
+      const score = await svc.getCumulativeScore('user-1', 'nonexistent')
+
+      // Assert
+      expect(score.evaluationCount).toBe(0)
+      expect(score.cumulativeScore).toBe(0)
+    })
+  })
+
+  describe('getAdjustmentForTotalEvaluation (Req 11.5)', () => {
+    it('サイクル内全評価者のスコアをMap形式で返す', async () => {
+      // Arrange
+      let callCount = 0
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider,
+        idFactory: () => `incentive-${++callCount}`,
+        clock: () => FIXED_NOW,
+      })
+
+      // user-1: 2件, user-2: 1件
+      await svc.applyIncentive({
+        responseId: 'resp-1',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+      await svc.applyIncentive({
+        responseId: 'resp-2',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+      await svc.applyIncentive({
+        responseId: 'resp-3',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-2',
+        qualityGatePassed: true,
+      })
+
+      // Act
+      const result = await svc.getAdjustmentForTotalEvaluation('cycle-1')
+
+      // Assert: user-1 = 2 × 1.5 = 3.0, user-2 = 1 × 1.5 = 1.5
+      expect(result.get('user-1')).toBe(3.0)
+      expect(result.get('user-2')).toBe(1.5)
+    })
+
+    it('レコードがないサイクルでは空のMapを返す', async () => {
+      // Arrange
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider,
+        idFactory: () => FIXED_ID,
+        clock: () => FIXED_NOW,
+      })
+
+      // Act
+      const result = await svc.getAdjustmentForTotalEvaluation('empty-cycle')
+
+      // Assert
+      expect(result.size).toBe(0)
+    })
+
+    it('異なるサイクルのレコードは含まれない', async () => {
+      // Arrange
+      let callCount = 0
+      const svc = createIncentiveService({
+        incentiveRepository: repo,
+        cycleKProvider,
+        idFactory: () => `incentive-${++callCount}`,
+        clock: () => FIXED_NOW,
+      })
+
+      await svc.applyIncentive({
+        responseId: 'resp-1',
+        cycleId: 'cycle-1',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+      await svc.applyIncentive({
+        responseId: 'resp-2',
+        cycleId: 'cycle-2',
+        evaluatorId: 'user-1',
+        qualityGatePassed: true,
+      })
+
+      // Act
+      const result = await svc.getAdjustmentForTotalEvaluation('cycle-1')
+
+      // Assert: cycle-1 のみ
+      expect(result.size).toBe(1)
+      expect(result.get('user-1')).toBe(1.5)
     })
   })
 })
