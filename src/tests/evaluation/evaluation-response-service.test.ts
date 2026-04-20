@@ -159,8 +159,11 @@ describe('EvaluationResponseService', () => {
       expect(publishedEvents).toHaveLength(1)
       expect(publishedEvents[0]).toMatchObject({
         evaluationId: 'resp-1',
+        responseId: 'resp-1',
+        cycleId: 'cycle-1',
         evaluatorId: 'user-evaluator',
         targetUserId: 'user-target',
+        qualityGatePassed: true,
       })
     })
 

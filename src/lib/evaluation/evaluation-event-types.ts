@@ -12,8 +12,11 @@ export type EvaluationEventName = (typeof EVALUATION_EVENT_NAMES)[number]
 export const evaluationEventSchema = {
   EvaluationSubmitted: z.object({
     evaluationId: z.string().min(1),
+    responseId: z.string().min(1),
+    cycleId: z.string().min(1),
     evaluatorId: z.string().min(1),
     targetUserId: z.string().min(1),
+    qualityGatePassed: z.boolean(),
     submittedAt: z.string().datetime(),
   }),
   CycleFinalized: z.object({
