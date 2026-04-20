@@ -1,11 +1,18 @@
 /**
- * Issue #55 / Task 17.1: マイルド化変換プロンプト単体テスト
+ * Issue #55 / Task 17.1, 17.2: マイルド化変換・要約生成プロンプト単体テスト
  *
  * - プロンプト構築の検証
  * - AI レスポンスパース検証
+ * - 要約プロンプト構築の検証
+ * - 要約レスポンスパース検証
  */
 import { describe, it, expect } from 'vitest'
-import { buildMildifyPrompt, parseMildifyResponse } from '@/lib/feedback/feedback-prompt'
+import {
+  buildMildifyPrompt,
+  parseMildifyResponse,
+  buildSummaryPrompt,
+  parseSummaryResponse,
+} from '@/lib/feedback/feedback-prompt'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildMildifyPrompt
@@ -81,5 +88,81 @@ describe('parseMildifyResponse', () => {
     const result = parseMildifyResponse('[]')
 
     expect(result).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// buildSummaryPrompt
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('buildSummaryPrompt', () => {
+  it('system + user の2メッセージを返す', () => {
+    const messages = buildSummaryPrompt({
+      transformedComments: ['コメント1', 'コメント2'],
+    })
+
+    expect(messages).toHaveLength(2)
+    expect(messages[0]!.role).toBe('system')
+    expect(messages[1]!.role).toBe('user')
+  })
+
+  it('user メッセージにコメントの JSON 配列が含まれる', () => {
+    const messages = buildSummaryPrompt({
+      transformedComments: ['丁寧さを意識するとさらに良くなります', 'モチベーション向上のサポートが有効です'],
+    })
+
+    const userContent = messages[1]!.content
+    expect(userContent).toBe(
+      JSON.stringify(['丁寧さを意識するとさらに良くなります', 'モチベーション向上のサポートが有効です']),
+    )
+  })
+
+  it('system メッセージに要約指示が含まれる', () => {
+    const messages = buildSummaryPrompt({
+      transformedComments: ['テスト'],
+    })
+
+    expect(messages[0]!.content).toContain('要約')
+    expect(messages[0]!.content).toContain('強み')
+    expect(messages[0]!.content).toContain('改善点')
+    expect(messages[0]!.content).toContain('200〜300文字')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// parseSummaryResponse
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('parseSummaryResponse', () => {
+  it('正常なテキストをそのまま返す', () => {
+    const input = '強みとして丁寧なコミュニケーションが評価されています。改善点としてはタスク管理の精度向上が期待されます。'
+    const result = parseSummaryResponse(input)
+
+    expect(result).toBe(input)
+  })
+
+  it('前後の空白をトリムする', () => {
+    const result = parseSummaryResponse('  要約テキスト  ')
+
+    expect(result).toBe('要約テキスト')
+  })
+
+  it('```コードブロックで囲まれたレスポンスをパースできる', () => {
+    const content = '```\n要約テキストです\n```'
+    const result = parseSummaryResponse(content)
+
+    expect(result).toBe('要約テキストです')
+  })
+
+  it('空文字列は null を返す', () => {
+    const result = parseSummaryResponse('')
+
+    expect(result).toBeNull()
+  })
+
+  it('空白のみの文字列は null を返す', () => {
+    const result = parseSummaryResponse('   ')
+
+    expect(result).toBeNull()
   })
 })
