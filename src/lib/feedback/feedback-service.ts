@@ -114,14 +114,16 @@ class FeedbackServiceImpl implements FeedbackService {
   async getPublishedFor(subjectId: string): Promise<PublishedFeedback[]> {
     const results = await this.feedbackResultRepository.findPublishedBySubject(subjectId)
 
-    return results.map((r) => ({
-      id: r.id,
-      cycleId: r.cycleId,
-      subjectId: r.subjectId,
-      transformedBatch: [...r.transformedBatch],
-      summary: r.summary,
-      publishedAt: r.publishedAt ?? '',
-    }))
+    return results
+      .filter((r) => r.publishedAt != null)
+      .map((r) => ({
+        id: r.id,
+        cycleId: r.cycleId,
+        subjectId: r.subjectId,
+        transformedBatch: [...r.transformedBatch],
+        summary: r.summary,
+        publishedAt: r.publishedAt!,
+      }))
   }
 }
 
