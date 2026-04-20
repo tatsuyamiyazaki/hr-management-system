@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { exportRequestSchema } from '@/lib/export/export-types'
 import { importRequestSchema } from '@/lib/import/import-types'
 import { NOTIFICATION_CATEGORIES } from '@/lib/notification/notification-types'
+import { feedbackTransformPayloadSchema } from '@/lib/feedback/feedback-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job 名一覧
@@ -13,6 +14,7 @@ export const JOB_NAMES = [
   'import-csv',
   'anonymize-user',
   'ai-feedback-generation',
+  'feedback-transform',
   'goal-deadline-alert',
   'one-on-one-reminder',
 ] as const
@@ -54,6 +56,8 @@ export const jobPayloadSchema = {
     prompt: z.string().min(1),
     requestedBy: z.string().min(1),
   }),
+
+  'feedback-transform': feedbackTransformPayloadSchema,
 
   'goal-deadline-alert': z.object({
     triggeredAt: z.string().datetime(),
