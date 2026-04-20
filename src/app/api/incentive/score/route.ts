@@ -7,11 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getIncentiveService } from '@/lib/incentive/incentive-service-di'
 
-export {
-  setIncentiveServiceForTesting,
-  clearIncentiveServiceForTesting,
-} from '@/lib/incentive/incentive-service-di'
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response

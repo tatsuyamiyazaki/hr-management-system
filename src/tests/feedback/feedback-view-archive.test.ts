@@ -46,7 +46,11 @@ function makeDeps(opts: {
   }
 
   return {
-    jobQueue: { enqueue: vi.fn() },
+    jobQueue: {
+      enqueue: vi.fn(),
+      getJobStatus: vi.fn().mockResolvedValue(null),
+      close: vi.fn().mockResolvedValue(undefined),
+    },
     feedbackRepository: {
       findSubjectsByCycleId: vi.fn().mockResolvedValue([]),
       findRawComments: vi.fn().mockResolvedValue([]),

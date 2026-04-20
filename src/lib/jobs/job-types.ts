@@ -3,6 +3,7 @@ import { exportRequestSchema } from '@/lib/export/export-types'
 import { importRequestSchema } from '@/lib/import/import-types'
 import { NOTIFICATION_CATEGORIES } from '@/lib/notification/notification-types'
 import { feedbackTransformPayloadSchema } from '@/lib/feedback/feedback-types'
+import { totalEvaluationCalculationPayloadSchema } from '@/lib/total-evaluation/total-evaluation-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Job 名一覧
@@ -15,6 +16,7 @@ export const JOB_NAMES = [
   'anonymize-user',
   'ai-feedback-generation',
   'feedback-transform',
+  'total-evaluation-calculate',
   'goal-deadline-alert',
   'one-on-one-reminder',
 ] as const
@@ -58,6 +60,8 @@ export const jobPayloadSchema = {
   }),
 
   'feedback-transform': feedbackTransformPayloadSchema,
+
+  'total-evaluation-calculate': totalEvaluationCalculationPayloadSchema,
 
   'goal-deadline-alert': z.object({
     triggeredAt: z.string().datetime(),

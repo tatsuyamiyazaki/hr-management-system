@@ -28,6 +28,12 @@ enum EmployeeStatus {
   PENDING_JOIN
 }
 
+enum TotalEvalStatus {
+  CALCULATED
+  PENDING_FINALIZATION
+  FINALIZED
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 監査ログ Enums (Requirement 17)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -729,4 +735,58 @@ model EvaluationResponse {
   @@index([cycleId, evaluatorId])
   @@index([cycleId, targetUserId])
   @@map("evaluation_responses")
+}
+
+// 総合評価 (Requirement 12.1, 12.2, 12.4)
+model TotalEvaluationResult {
+  id                  String          @id @default(cuid())
+  cycleId             String
+  subjectId           String
+  gradeId             String
+  gradeLabel          String
+  performanceScore    Float
+  goalScore           Float
+  feedbackScore       Float
+  incentiveAdjustment Float           @default(0)
+  performanceWeight   Float
+  goalWeight          Float
+  feedbackWeight      Float
+  finalScore          Float
+  status              TotalEvalStatus @default(CALCULATED)
+  calculatedAt        DateTime        @default(now())
+  finalizedAt         DateTime?
+
+  @@unique([cycleId, subjectId])
+  @@index([cycleId, status])
+  @@index([subjectId])
+  @@map("total_evaluation_results")
+}
+
+model TotalEvaluationOverride {
+  id         String   @id @default(cuid())
+  cycleId    String
+  subjectId  String
+  w1Override Float
+  w2Override Float
+  w3Override Float
+  reason     String
+  adjustedBy String
+  adjustedAt DateTime @default(now())
+
+  @@index([cycleId, subjectId])
+  @@map("total_evaluation_overrides")
+}
+
+model TotalEvaluationCorrection {
+  id          String   @id @default(cuid())
+  cycleId     String
+  subjectId   String
+  beforeJson  Json
+  afterJson   Json
+  correctedBy String
+  reason      String
+  correctedAt DateTime @default(now())
+
+  @@index([cycleId, subjectId])
+  @@map("total_evaluation_corrections")
 }

@@ -26,7 +26,8 @@ function makeMockAIGateway(
   mildifyResponse = '["transformed1"]',
   summaryResponse = 'この被評価者は丁寧なコミュニケーションが強みです。一方で、タスクの優先順位付けにおいて改善の余地があります。全体として成長意欲が高く、フィードバックを前向きに受け止める姿勢が評価されています。今後は計画的な業務遂行を意識することで、さらなる成長が期待できます。',
 ): AIGateway {
-  const chatFn = vi.fn()
+  const chatFn = vi
+    .fn()
     .mockResolvedValueOnce({
       content: mildifyResponse,
       provider: 'claude',
@@ -59,17 +60,17 @@ function makeMockFeedbackResultRepository(): FeedbackResultRepository {
     findByCycleAndSubject: vi.fn().mockResolvedValue(null),
     findByCycleId: vi.fn().mockResolvedValue([]),
     findPublishedBySubject: vi.fn().mockResolvedValue([]),
+    findPublishedBefore: vi.fn().mockResolvedValue([]),
     updateStatus: vi.fn().mockResolvedValue(undefined),
   }
 }
 
-function makeDeps(
-  overrides: Partial<FeedbackWorkerDeps> = {},
-): FeedbackWorkerDeps {
+function makeDeps(overrides: Partial<FeedbackWorkerDeps> = {}): FeedbackWorkerDeps {
   return {
     aiGateway: overrides.aiGateway ?? makeMockAIGateway(),
     feedbackRepository: overrides.feedbackRepository ?? makeMockFeedbackRepository(),
-    feedbackResultRepository: overrides.feedbackResultRepository ?? makeMockFeedbackResultRepository(),
+    feedbackResultRepository:
+      overrides.feedbackResultRepository ?? makeMockFeedbackResultRepository(),
     generateId: overrides.generateId ?? (() => 'test-id-1'),
   }
 }
@@ -85,12 +86,18 @@ beforeEach(() => {
 describe('processFeedbackTransformJob', () => {
   it('有効なペイロードで AIGateway を呼び出しマイルド化変換と要約生成を行う', async () => {
     const comments = ['彼の仕事は雑すぎる', 'やる気が全くない']
-    const transformedResponse = '["丁寧さを意識するとさらに良くなります", "モチベーション向上のサポートが有効かもしれません"]'
-    const summaryResponse = '強みとして誠実な取り組み姿勢が見られます。改善点として、作業の丁寧さとモチベーション管理に課題があります。'
+    const transformedResponse =
+      '["丁寧さを意識するとさらに良くなります", "モチベーション向上のサポートが有効かもしれません"]'
+    const summaryResponse =
+      '強みとして誠実な取り組み姿勢が見られます。改善点として、作業の丁寧さとモチベーション管理に課題があります。'
     const aiGateway = makeMockAIGateway(transformedResponse, summaryResponse)
     const repo = makeMockFeedbackRepository(comments)
     const resultRepo = makeMockFeedbackResultRepository()
-    const deps = makeDeps({ aiGateway, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const deps = makeDeps({
+      aiGateway,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
     const job = makeJob({ cycleId: 'cycle-1', subjectId: 'user-1' })
 
     const result = await processFeedbackTransformJob(job, deps)
@@ -111,11 +118,16 @@ describe('processFeedbackTransformJob', () => {
   it('要約生成後に FeedbackResultRepository に保存される', async () => {
     const comments = ['良い仕事をしている']
     const transformedResponse = '["引き続き良い仕事を続けてください"]'
-    const summaryResponse = '丁寧な業務遂行が強みとして評価されています。今後も継続的な成長が期待されます。'
+    const summaryResponse =
+      '丁寧な業務遂行が強みとして評価されています。今後も継続的な成長が期待されます。'
     const aiGateway = makeMockAIGateway(transformedResponse, summaryResponse)
     const repo = makeMockFeedbackRepository(comments)
     const resultRepo = makeMockFeedbackResultRepository()
-    const deps = makeDeps({ aiGateway, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const deps = makeDeps({
+      aiGateway,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
     const job = makeJob({ cycleId: 'cycle-1', subjectId: 'user-1' })
 
     await processFeedbackTransformJob(job, deps)
@@ -138,7 +150,11 @@ describe('processFeedbackTransformJob', () => {
     const aiGateway = makeMockAIGateway()
     const repo = makeMockFeedbackRepository([])
     const resultRepo = makeMockFeedbackResultRepository()
-    const deps = makeDeps({ aiGateway, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const deps = makeDeps({
+      aiGateway,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
     const job = makeJob({ cycleId: 'cycle-1', subjectId: 'user-1' })
 
     const result = await processFeedbackTransformJob(job, deps)
@@ -192,9 +208,7 @@ describe('processFeedbackTransformJob', () => {
     const deps = makeDeps({ aiGateway, feedbackRepository: repo })
     const job = makeJob({ cycleId: 'cycle-1', subjectId: 'user-1' })
 
-    await expect(processFeedbackTransformJob(job, deps)).rejects.toThrow(
-      'AI response mismatch',
-    )
+    await expect(processFeedbackTransformJob(job, deps)).rejects.toThrow('AI response mismatch')
   })
 
   it('AI レスポンスが不正なJSONの場合はエラーをスローする', async () => {
@@ -204,9 +218,7 @@ describe('processFeedbackTransformJob', () => {
     const deps = makeDeps({ aiGateway, feedbackRepository: repo })
     const job = makeJob({ cycleId: 'cycle-1', subjectId: 'user-1' })
 
-    await expect(processFeedbackTransformJob(job, deps)).rejects.toThrow(
-      'AI response mismatch',
-    )
+    await expect(processFeedbackTransformJob(job, deps)).rejects.toThrow('AI response mismatch')
   })
 
   it('要約生成が失敗した場合はエラーをスローする', async () => {

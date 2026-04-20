@@ -4,6 +4,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import type { IncentiveScore, IncentiveService } from '@/lib/incentive/incentive-types'
+import {
+  setIncentiveServiceForTesting,
+  clearIncentiveServiceForTesting,
+} from '@/lib/incentive/incentive-service-di'
 
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(),
@@ -12,11 +16,7 @@ vi.mock('next-auth', () => ({
 const { getServerSession } = await import('next-auth')
 const mockedGetServerSession = vi.mocked(getServerSession)
 
-const {
-  GET,
-  setIncentiveServiceForTesting,
-  clearIncentiveServiceForTesting,
-} = await import('@/app/api/incentive/score/route')
+const { GET } = await import('@/app/api/incentive/score/route')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

@@ -8,11 +8,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getFeedbackService } from '@/lib/feedback/feedback-service-di'
 
-export {
-  setFeedbackServiceForTesting,
-  clearFeedbackServiceForTesting,
-} from '@/lib/feedback/feedback-service-di'
-
 export async function POST(_request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response

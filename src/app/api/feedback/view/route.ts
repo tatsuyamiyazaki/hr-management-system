@@ -10,11 +10,6 @@ import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getFeedbackService } from '@/lib/feedback/feedback-service-di'
 import { FeedbackNotFoundError, FeedbackInvalidStatusError } from '@/lib/feedback/feedback-service'
 
-export {
-  setFeedbackServiceForTesting,
-  clearFeedbackServiceForTesting,
-} from '@/lib/feedback/feedback-service-di'
-
 const bodySchema = z.object({
   cycleId: z.string().min(1),
   subjectId: z.string().min(1),
