@@ -1,5 +1,6 @@
 /**
  * Issue #55 / Task 17.1, 17.2, 17.3: フィードバック変換ドメイン型定義
+ * Issue #63 / Task 17.4: 閲覧確認と公開後アーカイブ
  *
  * - マイルド化変換ジョブのペイロード型
  * - FeedbackService インターフェース
@@ -8,7 +9,7 @@
  * - FeedbackResultRepository ポート
  * - FeedbackPreview / PublishedFeedback DTO（Req 10.4, 10.6）
  *
- * 関連要件: Req 10.1, 10.2, 10.3, 10.4, 10.5, 10.6
+ * 関連要件: Req 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9
  */
 import { z } from 'zod'
 import type { UserRole } from '@/lib/notification/notification-types'
@@ -72,6 +73,7 @@ export interface FeedbackTransformResult {
   readonly approvedBy?: string
   readonly approvedAt?: string
   readonly publishedAt?: string
+  readonly viewedAt?: string
   readonly archivedAt?: string
 }
 
@@ -99,11 +101,18 @@ export interface FeedbackResultRepository {
   findByCycleId(cycleId: string): Promise<FeedbackTransformResult[]>
   /** subjectId に紐づく公開済みフィードバックを取得する */
   findPublishedBySubject(subjectId: string): Promise<FeedbackTransformResult[]>
+  /** publishedAt が指定日時より前の PUBLISHED フィードバックを取得する（アーカイブ候補） */
+  findPublishedBefore(publishedBefore: string): Promise<FeedbackTransformResult[]>
   /** ステータスを更新する */
   updateStatus(
     cycleId: string,
     subjectId: string,
-    update: Partial<Pick<FeedbackTransformResult, 'status' | 'approvedBy' | 'approvedAt' | 'publishedAt'>>,
+    update: Partial<
+      Pick<
+        FeedbackTransformResult,
+        'status' | 'approvedBy' | 'approvedAt' | 'publishedAt' | 'viewedAt' | 'archivedAt'
+      >
+    >,
   ): Promise<void>
 }
 
@@ -171,4 +180,8 @@ export interface FeedbackService {
   approveAndPublish(cycleId: string, subjectId: string, approvedBy: string): Promise<void>
   /** 被評価者向け公開済みフィードバック一覧取得（evaluatorId 除外）（Req 10.6） */
   getPublishedFor(subjectId: string): Promise<PublishedFeedback[]>
+  /** 被評価者の確認日時を記録する（Req 10.7） */
+  recordView(cycleId: string, subjectId: string): Promise<void>
+  /** 公開から2年経過したフィードバックをアーカイブ化する（Req 10.9） */
+  archiveExpired(now: Date): Promise<{ archived: number }>
 }
