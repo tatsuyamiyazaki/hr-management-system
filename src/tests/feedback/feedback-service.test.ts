@@ -6,8 +6,16 @@
  * - HR_MANAGER プレビュー・承認・公開
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createFeedbackService, FeedbackNotFoundError, FeedbackInvalidStatusError } from '@/lib/feedback/feedback-service'
-import type { FeedbackRepository, FeedbackResultRepository, FeedbackTransformResult } from '@/lib/feedback/feedback-types'
+import {
+  createFeedbackService,
+  FeedbackNotFoundError,
+  FeedbackInvalidStatusError,
+} from '@/lib/feedback/feedback-service'
+import type {
+  FeedbackRepository,
+  FeedbackResultRepository,
+  FeedbackTransformResult,
+} from '@/lib/feedback/feedback-types'
 import type { JobQueue } from '@/lib/jobs/job-queue'
 import { InMemoryEvaluationEventBus } from '@/lib/evaluation/evaluation-event-bus'
 
@@ -49,13 +57,18 @@ function makeMockFeedbackResultRepository(
         store.filter((r) => r.subjectId === subjectId && r.status === 'PUBLISHED'),
       )
     }),
-    updateStatus: vi.fn().mockImplementation((cycleId: string, subjectId: string, update: Partial<FeedbackTransformResult>) => {
-      const idx = store.findIndex((r) => r.cycleId === cycleId && r.subjectId === subjectId)
-      if (idx >= 0) {
-        store[idx] = { ...store[idx]!, ...update }
-      }
-      return Promise.resolve()
-    }),
+    findPublishedBefore: vi.fn().mockResolvedValue([]),
+    updateStatus: vi
+      .fn()
+      .mockImplementation(
+        (cycleId: string, subjectId: string, update: Partial<FeedbackTransformResult>) => {
+          const idx = store.findIndex((r) => r.cycleId === cycleId && r.subjectId === subjectId)
+          if (idx >= 0) {
+            store[idx] = { ...store[idx]!, ...update }
+          }
+          return Promise.resolve()
+        },
+      ),
   }
 }
 
@@ -89,7 +102,11 @@ describe('FeedbackService.scheduleTransform', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository(['user-1', 'user-2', 'user-3'])
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     await svc.scheduleTransform('cycle-1')
 
@@ -113,7 +130,11 @@ describe('FeedbackService.scheduleTransform', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository([])
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     await svc.scheduleTransform('cycle-1')
 
@@ -132,7 +153,12 @@ describe('FeedbackService CycleFinalized 購読', () => {
     const resultRepo = makeMockFeedbackResultRepository()
     const eventBus = new InMemoryEvaluationEventBus()
 
-    createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo, eventBus })
+    createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+      eventBus,
+    })
 
     // Act: CycleFinalized イベントを publish
     await eventBus.publish('CycleFinalized', {
@@ -158,7 +184,11 @@ describe('FeedbackService CycleFinalized 購読', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository(['user-x'])
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     await svc.scheduleTransform('cycle-5')
 
@@ -179,7 +209,11 @@ describe('FeedbackService.previewTransformed', () => {
     const repo = makeMockFeedbackRepository()
     const sample = makeSampleTransformResult()
     const resultRepo = makeMockFeedbackResultRepository([sample])
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     const preview = await svc.previewTransformed('cycle-1', 'user-1')
 
@@ -196,7 +230,11 @@ describe('FeedbackService.previewTransformed', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository()
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     const preview = await svc.previewTransformed('cycle-1', 'user-1')
 
@@ -235,7 +273,11 @@ describe('FeedbackService.approveAndPublish', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository()
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     await expect(svc.approveAndPublish('cycle-1', 'user-1', 'hr-mgr-1')).rejects.toThrow(
       FeedbackNotFoundError,
@@ -247,7 +289,11 @@ describe('FeedbackService.approveAndPublish', () => {
     const repo = makeMockFeedbackRepository()
     const sample = makeSampleTransformResult({ status: 'PUBLISHED' })
     const resultRepo = makeMockFeedbackResultRepository([sample])
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     await expect(svc.approveAndPublish('cycle-1', 'user-1', 'hr-mgr-1')).rejects.toThrow(
       FeedbackInvalidStatusError,
@@ -268,7 +314,11 @@ describe('FeedbackService.getPublishedFor', () => {
       publishedAt: '2025-01-15T10:00:00.000Z',
     })
     const resultRepo = makeMockFeedbackResultRepository([published])
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     const results = await svc.getPublishedFor('user-1')
 
@@ -290,7 +340,11 @@ describe('FeedbackService.getPublishedFor', () => {
     const jobQueue = makeMockJobQueue()
     const repo = makeMockFeedbackRepository()
     const resultRepo = makeMockFeedbackResultRepository()
-    const svc = createFeedbackService({ jobQueue, feedbackRepository: repo, feedbackResultRepository: resultRepo })
+    const svc = createFeedbackService({
+      jobQueue,
+      feedbackRepository: repo,
+      feedbackResultRepository: resultRepo,
+    })
 
     const results = await svc.getPublishedFor('user-1')
 

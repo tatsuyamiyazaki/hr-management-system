@@ -13,7 +13,11 @@ import {
   setFeedbackServiceForTesting,
   clearFeedbackServiceForTesting,
 } from '@/lib/feedback/feedback-service-di'
-import type { FeedbackService, FeedbackPreview, PublishedFeedback } from '@/lib/feedback/feedback-types'
+import type {
+  FeedbackService,
+  FeedbackPreview,
+  PublishedFeedback,
+} from '@/lib/feedback/feedback-types'
 import { FeedbackNotFoundError, FeedbackInvalidStatusError } from '@/lib/feedback/feedback-service'
 
 vi.mock('next-auth', () => ({
@@ -53,6 +57,8 @@ function makeMockFeedbackService(overrides?: Partial<FeedbackService>): Feedback
     previewTransformed: vi.fn().mockResolvedValue(null),
     approveAndPublish: vi.fn().mockResolvedValue(undefined),
     getPublishedFor: vi.fn().mockResolvedValue([]),
+    recordView: vi.fn().mockResolvedValue(undefined),
+    archiveExpired: vi.fn().mockResolvedValue({ archived: 0 }),
     ...overrides,
   }
 }
@@ -119,7 +125,9 @@ describe('GET /api/feedback/preview', () => {
 
   it('結果が存在しない場合 404', async () => {
     mockedGetServerSession.mockResolvedValue(makeHrManagerSession())
-    setFeedbackServiceForTesting(makeMockFeedbackService({ previewTransformed: vi.fn().mockResolvedValue(null) }))
+    setFeedbackServiceForTesting(
+      makeMockFeedbackService({ previewTransformed: vi.fn().mockResolvedValue(null) }),
+    )
 
     const req = new NextRequest('http://localhost/api/feedback/preview?cycleId=c1&subjectId=s1')
     const res = await previewGET(req)
@@ -129,9 +137,13 @@ describe('GET /api/feedback/preview', () => {
   it('HR_MANAGER がプレビューを取得できる', async () => {
     mockedGetServerSession.mockResolvedValue(makeHrManagerSession())
     const preview = makeSamplePreview()
-    setFeedbackServiceForTesting(makeMockFeedbackService({ previewTransformed: vi.fn().mockResolvedValue(preview) }))
+    setFeedbackServiceForTesting(
+      makeMockFeedbackService({ previewTransformed: vi.fn().mockResolvedValue(preview) }),
+    )
 
-    const req = new NextRequest('http://localhost/api/feedback/preview?cycleId=cycle-1&subjectId=user-1')
+    const req = new NextRequest(
+      'http://localhost/api/feedback/preview?cycleId=cycle-1&subjectId=user-1',
+    )
     const res = await previewGET(req)
 
     expect(res.status).toBe(200)
@@ -214,7 +226,9 @@ describe('POST /api/feedback/approve', () => {
     mockedGetServerSession.mockResolvedValue(makeHrManagerSession())
     setFeedbackServiceForTesting(
       makeMockFeedbackService({
-        approveAndPublish: vi.fn().mockRejectedValue(new FeedbackInvalidStatusError('PENDING_HR_APPROVAL', 'PUBLISHED')),
+        approveAndPublish: vi
+          .fn()
+          .mockRejectedValue(new FeedbackInvalidStatusError('PENDING_HR_APPROVAL', 'PUBLISHED')),
       }),
     )
 
@@ -261,7 +275,9 @@ describe('GET /api/feedback/published', () => {
   it('認証済みユーザーの公開フィードバックを取得できる（匿名）', async () => {
     mockedGetServerSession.mockResolvedValue(makeEmployeeSession('emp-1'))
     const published = makeSamplePublished()
-    setFeedbackServiceForTesting(makeMockFeedbackService({ getPublishedFor: vi.fn().mockResolvedValue([published]) }))
+    setFeedbackServiceForTesting(
+      makeMockFeedbackService({ getPublishedFor: vi.fn().mockResolvedValue([published]) }),
+    )
 
     const res = await publishedGET()
 
