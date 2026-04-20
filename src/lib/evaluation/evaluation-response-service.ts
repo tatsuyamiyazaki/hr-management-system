@@ -202,8 +202,11 @@ class EvaluationResponseServiceImpl implements EvaluationResponseService {
       const bus = getEvaluationEventBus()
       await bus.publish('EvaluationSubmitted', {
         evaluationId: row.id,
+        responseId: row.id,
+        cycleId,
         evaluatorId,
         targetUserId,
+        qualityGatePassed: true,
         submittedAt: now.toISOString(),
       })
     } catch {

@@ -23,8 +23,11 @@ const NOW = '2024-01-15T10:00:00.000Z'
 const validPayloads: EvaluationEventPayloadMap = {
   EvaluationSubmitted: {
     evaluationId: 'eval-1',
+    responseId: 'eval-1',
+    cycleId: 'cycle-1',
     evaluatorId: 'user-1',
     targetUserId: 'user-2',
+    qualityGatePassed: true,
     submittedAt: NOW,
   },
   CycleFinalized: {
@@ -116,8 +119,11 @@ describe('InMemoryEvaluationEventBus', () => {
       // Act — evaluatorId が空文字（min(1) 違反）
       await bus.publish('EvaluationSubmitted', {
         evaluationId: 'eval-1',
+        responseId: 'eval-1',
+        cycleId: 'cycle-1',
         evaluatorId: '',
         targetUserId: 'user-2',
+        qualityGatePassed: true,
         submittedAt: NOW,
       })
 
