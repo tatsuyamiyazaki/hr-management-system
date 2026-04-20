@@ -57,6 +57,9 @@ function makeMockFeedbackResultRepository(): FeedbackResultRepository {
   return {
     save: vi.fn().mockResolvedValue(undefined),
     findByCycleAndSubject: vi.fn().mockResolvedValue(null),
+    findByCycleId: vi.fn().mockResolvedValue([]),
+    findPublishedBySubject: vi.fn().mockResolvedValue([]),
+    updateStatus: vi.fn().mockResolvedValue(undefined),
   }
 }
 
