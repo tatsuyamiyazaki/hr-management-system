@@ -98,6 +98,8 @@ export function useAICoachChat(props: UseAICoachChatProps): UseAICoachChatReturn
   const { cycleId, subjectRoleContext, onQualityGatePassed } = props
   const [state, setState] = useState<AICoachChatState>(INITIAL_STATE)
   const abortRef = useRef<AbortController | null>(null)
+  const messagesRef = useRef<readonly ChatMessage[]>([])
+  messagesRef.current = state.messages
 
   const sendComment = useCallback(
     async (draftComment: string) => {
@@ -118,7 +120,7 @@ export function useAICoachChat(props: UseAICoachChatProps): UseAICoachChatReturn
       abortRef.current = new AbortController()
 
       try {
-        const conversationHistory = state.messages.map((m) => ({
+        const conversationHistory = messagesRef.current.map((m) => ({
           role: m.role,
           content: m.content,
         }))
@@ -210,7 +212,7 @@ export function useAICoachChat(props: UseAICoachChatProps): UseAICoachChatReturn
         }))
       }
     },
-    [cycleId, subjectRoleContext, state.messages, onQualityGatePassed],
+    [cycleId, subjectRoleContext, onQualityGatePassed],
   )
 
   const reset = useCallback(() => {
