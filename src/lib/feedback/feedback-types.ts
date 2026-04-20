@@ -1,13 +1,14 @@
 /**
- * Issue #55 / Task 17.1, 17.2: フィードバック変換ドメイン型定義
+ * Issue #55 / Task 17.1, 17.2, 17.3: フィードバック変換ドメイン型定義
  *
  * - マイルド化変換ジョブのペイロード型
  * - FeedbackService インターフェース
  * - 変換結果の型
  * - FeedbackTransformResult エンティティ（永続化モデル）
  * - FeedbackResultRepository ポート
+ * - FeedbackPreview / PublishedFeedback DTO（Req 10.4, 10.6）
  *
- * 関連要件: Req 10.1, 10.2, 10.3, 10.5
+ * 関連要件: Req 10.1, 10.2, 10.3, 10.4, 10.5, 10.6
  */
 import { z } from 'zod'
 import type { UserRole } from '@/lib/notification/notification-types'
@@ -94,6 +95,16 @@ export interface FeedbackResultRepository {
   save(result: FeedbackTransformResult): Promise<void>
   /** cycleId + subjectId で変換結果を取得する */
   findByCycleAndSubject(cycleId: string, subjectId: string): Promise<FeedbackTransformResult | null>
+  /** cycleId に紐づく全変換結果を取得する */
+  findByCycleId(cycleId: string): Promise<FeedbackTransformResult[]>
+  /** subjectId に紐づく公開済みフィードバックを取得する */
+  findPublishedBySubject(subjectId: string): Promise<FeedbackTransformResult[]>
+  /** ステータスを更新する */
+  updateStatus(
+    cycleId: string,
+    subjectId: string,
+    update: Partial<Pick<FeedbackTransformResult, 'status' | 'approvedBy' | 'approvedAt' | 'publishedAt'>>,
+  ): Promise<void>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,7 +125,50 @@ export function canAccessRawComments(role: UserRole): boolean {
 // Service interface
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * HR_MANAGER 向けプレビュー DTO（Req 10.4）。
+ * 承認前に変換後コメントと要約を確認するために使用。
+ */
+export interface FeedbackPreview {
+  readonly cycleId: string
+  readonly subjectId: string
+  readonly transformedBatch: readonly string[]
+  readonly summary: string
+  readonly status: FeedbackStatus
+}
+
+/**
+ * 被評価者向け公開フィードバック DTO（Req 10.6）。
+ * evaluatorId は型レベルで排除（匿名性保証）。
+ */
+export interface PublishedFeedback {
+  readonly id: string
+  readonly cycleId: string
+  readonly subjectId: string
+  readonly transformedBatch: readonly string[]
+  readonly summary: string
+  readonly publishedAt: string
+}
+
+/** PublishedFeedback の Zod スキーマ（余計なフィールド禁止） */
+export const publishedFeedbackSchema = z
+  .object({
+    id: z.string(),
+    cycleId: z.string(),
+    subjectId: z.string(),
+    transformedBatch: z.array(z.string()),
+    summary: z.string(),
+    publishedAt: z.string(),
+  })
+  .strict()
+
 export interface FeedbackService {
   /** サイクル完了時に被評価者単位の変換ジョブを BullMQ に投入する */
   scheduleTransform(cycleId: string): Promise<void>
+  /** HR_MANAGER 向け変換後プレビュー取得（Req 10.4） */
+  previewTransformed(cycleId: string, subjectId: string): Promise<FeedbackPreview | null>
+  /** HR_MANAGER が承認し公開する（Req 10.4, 10.6） */
+  approveAndPublish(cycleId: string, subjectId: string, approvedBy: string): Promise<void>
+  /** 被評価者向け公開済みフィードバック一覧取得（evaluatorId 除外）（Req 10.6） */
+  getPublishedFor(subjectId: string): Promise<PublishedFeedback[]>
 }
