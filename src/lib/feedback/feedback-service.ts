@@ -1,11 +1,14 @@
 /**
  * Issue #55 / Task 17.1, 17.3: FeedbackService 実装
+ * Issue #63 / Task 17.4: 閲覧確認と公開後アーカイブ
  *
  * - CycleFinalized イベント購読で scheduleTransform を自動起動
  * - 被評価者単位の BullMQ ジョブ投入
  * - HR_MANAGER プレビュー・承認・公開（Req 10.4, 10.6）
+ * - 被評価者の確認日時記録（Req 10.7）
+ * - 公開から2年経過でアーカイブ化（Req 10.9）
  *
- * 関連要件: Req 10.1, 10.2, 10.4, 10.6
+ * 関連要件: Req 10.1, 10.2, 10.4, 10.6, 10.7, 10.9
  */
 import type { JobQueue } from '@/lib/jobs/job-queue'
 import type { EvaluationEventBus } from '@/lib/evaluation/evaluation-event-bus'
@@ -124,6 +127,37 @@ class FeedbackServiceImpl implements FeedbackService {
         summary: r.summary,
         publishedAt: r.publishedAt!,
       }))
+  }
+
+  async recordView(cycleId: string, subjectId: string): Promise<void> {
+    const result = await this.feedbackResultRepository.findByCycleAndSubject(cycleId, subjectId)
+    if (!result) {
+      throw new FeedbackNotFoundError(cycleId, subjectId)
+    }
+    if (result.status !== 'PUBLISHED' && result.status !== 'ARCHIVED') {
+      throw new FeedbackInvalidStatusError('PUBLISHED or ARCHIVED', result.status)
+    }
+    await this.feedbackResultRepository.updateStatus(cycleId, subjectId, {
+      viewedAt: this.clock().toISOString(),
+    })
+  }
+
+  async archiveExpired(now: Date): Promise<{ archived: number }> {
+    const twoYearsAgo = new Date(now)
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2)
+    const threshold = twoYearsAgo.toISOString()
+
+    const expired = await this.feedbackResultRepository.findPublishedBefore(threshold)
+    const archivedAt = now.toISOString()
+
+    for (const r of expired) {
+      await this.feedbackResultRepository.updateStatus(r.cycleId, r.subjectId, {
+        status: 'ARCHIVED',
+        archivedAt,
+      })
+    }
+
+    return { archived: expired.length }
   }
 }
 
