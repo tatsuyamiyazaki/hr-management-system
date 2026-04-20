@@ -7,11 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getCareerAggregateService } from '@/lib/career/career-aggregate-service-di'
 
-export {
-  setCareerAggregateServiceForTesting,
-  clearCareerAggregateServiceForTesting,
-} from '@/lib/career/career-aggregate-service-di'
-
 const ALLOWED_ROLES: readonly string[] = ['HR_MANAGER', 'ADMIN']
 
 export async function GET(_request: NextRequest): Promise<NextResponse> {

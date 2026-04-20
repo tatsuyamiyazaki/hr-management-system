@@ -1,14 +1,14 @@
 /**
- * Issue #49 / Req 7.7: 評価フォーム用 1on1 ログ参照リンク API
+ * Issue #49 / Req 7.7: 隧穂ｾ｡繝輔か繝ｼ繝逕ｨ 1on1 繝ｭ繧ｰ蜿ら・繝ｪ繝ｳ繧ｯ API
  *
  * GET /api/one-on-one/evaluation-links?employeeId=...&from=...&to=...
- * - 本人 または MANAGER 以上のみ参照可能
+ * - 譛ｬ莠ｺ 縺ｾ縺溘・ MANAGER 莉･荳翫・縺ｿ蜿ら・蜿ｯ閭ｽ
  * - 200: EvaluationLogLink[]
- * - 400: クエリパラメータ不正
- * - 401 / 403: 認証/認可エラー
- * - 503: サービス未初期化
+ * - 400: 繧ｯ繧ｨ繝ｪ繝代Λ繝｡繝ｼ繧ｿ荳肴ｭ｣
+ * - 401 / 403: 隱崎ｨｼ/隱榊庄繧ｨ繝ｩ繝ｼ
+ * - 503: 繧ｵ繝ｼ繝薙せ譛ｪ蛻晄悄蛹・
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createOneOnOneReminderService,
@@ -16,22 +16,11 @@ import {
 } from '@/lib/one-on-one/one-on-one-reminder-service'
 import { createInMemoryNotificationRepository } from '@/lib/notification/notification-repository'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DI（テスト差し替え用）
-// ─────────────────────────────────────────────────────────────────────────────
-
-let _service: OneOnOneReminderService | null = null
-
-export function setEvaluationLinksServiceForTesting(s: OneOnOneReminderService): void {
-  _service = s
-}
-
-export function clearEvaluationLinksServiceForTesting(): void {
-  _service = null
-}
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+// DI・医ユ繧ｹ繝亥ｷｮ縺玲崛縺育畑・・
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 function getService(): OneOnOneReminderService {
-  if (_service) return _service
   return createOneOnOneReminderService({
     subordinateRepo: {
       async findAllSubordinatesWithLastLog() {
@@ -50,14 +39,14 @@ function getService(): OneOnOneReminderService {
   })
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 認可: 本人 または MANAGER 以上
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+// 隱榊庄: 譛ｬ莠ｺ 縺ｾ縺溘・ MANAGER 莉･荳・
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 const ALLOWED_ROLES = new Set(['ADMIN', 'HR_MANAGER', 'MANAGER'])
 
 function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
+  serverSession: Awaited<ReturnType<typeof getAppSession>>,
   employeeId: string,
 ): { ok: true } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
@@ -76,9 +65,9 @@ function authorize(
   return { ok: true }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // GET /api/one-on-one/evaluation-links
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl
@@ -100,7 +89,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid date format for from or to' }, { status: 400 })
   }
 
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   const auth = authorize(serverSession, employeeId)
   if (!auth.ok) return auth.response
 

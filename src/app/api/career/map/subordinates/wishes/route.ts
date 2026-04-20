@@ -1,23 +1,18 @@
 /**
- * Issue #40 / Req 5.4: 部下キャリア希望一覧 API
+ * Issue #40 / Req 5.4: 驛ｨ荳九く繝｣繝ｪ繧｢蟶梧悍荳隕ｧ API
  *
  * GET /api/career/map/subordinates/wishes
- *   - MANAGER / HR_MANAGER / ADMIN のみアクセス可
- *   - ログインユーザー配下の部下のキャリア希望一覧を返す
+ *   - MANAGER / HR_MANAGER / ADMIN 縺ｮ縺ｿ繧｢繧ｯ繧ｻ繧ｹ蜿ｯ
+ *   - 繝ｭ繧ｰ繧､繝ｳ繝ｦ繝ｼ繧ｶ繝ｼ驟堺ｸ九・驛ｨ荳九・繧ｭ繝｣繝ｪ繧｢蟶梧悍荳隕ｧ繧定ｿ斐☆
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { NextResponse } from 'next/server'
 import { getCareerMapService } from '@/lib/career/career-map-service-di'
-
-export {
-  setCareerMapServiceForTesting,
-  clearCareerMapServiceForTesting,
-} from '@/lib/career/career-map-service-di'
 
 const ALLOWED_ROLES = new Set(['MANAGER', 'HR_MANAGER', 'ADMIN'])
 
 export async function GET(): Promise<NextResponse> {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

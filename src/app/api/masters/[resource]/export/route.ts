@@ -10,8 +10,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isMasterResource } from '@/lib/master/master-csv'
 import { getExportJob } from '@/lib/master/master-job-di'
 
-export { setExportJobForTesting, clearExportJobForTesting } from '@/lib/master/master-job-di'
-
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ resource: string }> },

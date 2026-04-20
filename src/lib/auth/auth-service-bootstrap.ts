@@ -13,7 +13,6 @@
  * 冪等性: 一度初期化したら同じインスタンスを返す。
  * テスト用に resetAuthServiceBootstrap() を提供する。
  */
-import { Redis } from 'ioredis'
 import { createAuthService, type AuthService } from './auth-service'
 import { createBcryptPasswordHasher } from './password-hasher'
 import {
@@ -32,10 +31,10 @@ let _cached: AuthService | null = null
 export function bootstrapAuthService(): AuthService {
   if (_cached) return _cached
 
-  const appSecret = process.env.APP_SECRET
+  const appSecret = process.env.APP_SECRET ?? process.env.NEXTAUTH_SECRET
   if (typeof appSecret !== 'string' || appSecret.length === 0) {
     throw new Error(
-      'APP_SECRET is not configured. Set APP_SECRET env var before starting the server.',
+      'APP_SECRET is not configured. Set APP_SECRET or NEXTAUTH_SECRET before starting the server.',
     )
   }
 
@@ -73,11 +72,17 @@ function buildSessionStore(): SessionStore {
     return createInMemorySessionStore()
   }
 
+  const Redis = loadRedisConstructor()
   const redis = new Redis(redisUrl, {
     // BullMQ 等と異なり、セッションストアは標準のリトライ動作で十分
     lazyConnect: false,
   })
   return createRedisSessionStore({ redis })
+}
+
+function loadRedisConstructor(): typeof import('ioredis').Redis {
+  const requireFn = eval('require') as NodeRequire
+  return (requireFn('ioredis') as typeof import('ioredis')).Redis
 }
 
 function buildUserRepository(): AuthUserRepository {

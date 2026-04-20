@@ -13,10 +13,10 @@ import { z } from 'zod'
 // Branded ID types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type DepartmentId = string & { readonly __brand: 'DepartmentId' }
-export type PositionId = string & { readonly __brand: 'PositionId' }
-export type TransferRecordId = string & { readonly __brand: 'TransferRecordId' }
-export type UserId = string & { readonly __brand: 'UserId' }
+export type DepartmentId = string
+export type PositionId = string
+export type TransferRecordId = string
+export type UserId = string
 
 export function toDepartmentId(value: string): DepartmentId {
   return value as DepartmentId
@@ -37,20 +37,21 @@ export function toUserId(value: string): UserId {
 
 /** 部署 (Requirement 3.6) */
 export interface Department {
-  readonly id: DepartmentId
+  readonly id: string
   readonly name: string
-  readonly parentId: DepartmentId | null
+  readonly parentId: string | null
   readonly createdAt: Date
   readonly deletedAt: Date | null
 }
 
 /** ポジション (Requirement 3.6) */
 export interface Position {
-  readonly id: PositionId
-  readonly departmentId: DepartmentId
+  readonly id: string
+  readonly departmentId?: string
   readonly roleId: string
   readonly holderUserId: string | null
-  readonly supervisorPositionId: PositionId | null
+  readonly holderName?: string | null
+  readonly supervisorPositionId?: string | null
 }
 
 /** 異動履歴 (Requirement 3.7) */
@@ -70,7 +71,10 @@ export interface TransferRecord {
 
 /** 組織ツリーのノード (Department を中心に構成) */
 export interface OrgNode {
-  readonly department: Department
+  readonly id: string
+  readonly name: string
+  readonly parentId: string | null
+  readonly department?: Department
   readonly positions: readonly Position[]
   readonly children: readonly OrgNode[]
 }
@@ -78,7 +82,7 @@ export interface OrgNode {
 /** 組織ツリー全体 */
 export interface OrgTree {
   readonly roots: readonly OrgNode[]
-  readonly capturedAt: Date
+  readonly capturedAt?: Date
 }
 
 /** プレビューは OrgTree に warnings を付加した形で返す */
@@ -86,6 +90,30 @@ export interface OrgTreePreview {
   readonly tree: OrgTree
   /** 適用予定変更の摘要 (UI 表示用) */
   readonly summary: readonly string[]
+}
+
+export interface OrgMoveOperation {
+  readonly nodeId: string
+  readonly newParentId: string | null
+}
+
+export interface OrgCommitResponse {
+  readonly appliedOperations: number
+}
+
+export interface DirectReport {
+  readonly userId: string
+  readonly name: string
+  readonly email: string
+  readonly roleName: string
+  readonly departmentName: string
+}
+
+export interface MyTeamResponse {
+  readonly managerId: string
+  readonly managerName: string
+  readonly departmentName: string
+  readonly directReports: readonly DirectReport[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,7 +178,11 @@ export type ChangePositionInput = z.infer<typeof changePositionInputSchema>
  * - Position の supervisor: supervisorPositionId 辿りで自己に戻った場合
  */
 /** UI ツリー操作（org-tree-ops）で発生するエラー */
-export type OrgChangeErrorCode = 'CYCLE_DETECTED' | 'SAME_PARENT' | 'NODE_NOT_FOUND'
+export type OrgChangeErrorCode =
+  | 'CYCLE_DETECTED'
+  | 'SAME_PARENT'
+  | 'NODE_NOT_FOUND'
+  | 'INVALID_OPERATION'
 
 export class OrgChangeError extends Error {
   public readonly code: OrgChangeErrorCode

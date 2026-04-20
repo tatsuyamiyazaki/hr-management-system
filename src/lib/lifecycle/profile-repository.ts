@@ -52,7 +52,7 @@ class InMemoryProfileRepository implements ProfileRepository {
     }
     mutable['updatedAt'] = new Date()
 
-    this.store.set(userId, mutable as ProfileRecord)
+    this.store.set(userId, mutable as unknown as ProfileRecord)
   }
 }
 

@@ -1,8 +1,8 @@
 /**
  * Issue #47 / Task 14.1: 1on1 セッション詳細・更新 API (Req 7.1, 7.2)
  *
- * - GET   /api/one-on-one/sessions/[id] — セッション詳細
- * - PATCH /api/one-on-one/sessions/[id] — 予定更新（MANAGER のみ）
+ * - GET   /api/one-on-one/sessions/[sessionId] — セッション詳細
+ * - PATCH /api/one-on-one/sessions/[sessionId] — 予定更新（MANAGER のみ）
  */
 import { type NextRequest, NextResponse } from 'next/server'
 import { oneOnOneSessionInputSchema } from '@/lib/one-on-one/one-on-one-types'
@@ -16,19 +16,15 @@ import {
   requireManager,
 } from '@/lib/skill/skill-route-helpers'
 import { getOneOnOneSessionService } from '@/lib/one-on-one/one-on-one-session-service-di'
+import type { OneOnOneSessionRecord } from '@/lib/one-on-one/one-on-one-types'
 
-export {
-  setOneOnOneSessionServiceForTesting,
-  clearOneOnOneSessionServiceForTesting,
-} from '@/lib/one-on-one/one-on-one-session-service-di'
-
-type RouteContext = { params: Promise<{ id: string }> }
+type RouteContext = { params: Promise<{ sessionId: string }> }
 
 export async function GET(_request: NextRequest, context: RouteContext): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response
 
-  const { id } = await context.params
+  const { sessionId } = await context.params
 
   let svc: ReturnType<typeof getOneOnOneSessionService>
   try {
@@ -38,9 +34,12 @@ export async function GET(_request: NextRequest, context: RouteContext): Promise
   }
 
   try {
-    const session = await svc.getSession(id)
+    const session = await svc.getSession(sessionId)
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+    }
+    if (!canReadSession(guard.session, session)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     return NextResponse.json({ success: true, data: session })
   } catch {
@@ -48,11 +47,20 @@ export async function GET(_request: NextRequest, context: RouteContext): Promise
   }
 }
 
+function canReadSession(
+  actor: { readonly userId: string; readonly role: string },
+  session: OneOnOneSessionRecord,
+): boolean {
+  if (actor.role === 'ADMIN' || actor.role === 'HR_MANAGER') return true
+  if (actor.role === 'MANAGER') return session.managerId === actor.userId
+  return session.employeeId === actor.userId
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   const guard = await requireManager()
   if (!guard.ok) return guard.response
 
-  const { id } = await context.params
+  const { sessionId } = await context.params
 
   const parsedBody = await parseJsonBody(request)
   if (!parsedBody.ok) return parsedBody.response
@@ -70,7 +78,7 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
   }
 
   try {
-    const session = await svc.updateSession(id, guard.session.userId, validated.data)
+    const session = await svc.updateSession(sessionId, guard.session.userId, validated.data)
     return NextResponse.json({ success: true, data: session })
   } catch (err) {
     if (err instanceof OneOnOneSessionNotFoundError) {

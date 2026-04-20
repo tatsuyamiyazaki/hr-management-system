@@ -9,11 +9,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireManager, skillErrorToResponse } from '@/lib/skill/skill-route-helpers'
 import { getSkillService } from '@/lib/skill/skill-service-di'
 
-export {
-  setSkillServiceForTesting,
-  clearSkillServiceForTesting,
-} from '@/lib/skill/skill-service-di'
-
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   const guard = await requireManager()
   if (!guard.ok) return guard.response

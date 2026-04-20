@@ -1,16 +1,16 @@
 /**
- * Issue #29 / Req 14.1: 社員作成 API
+ * Issue #29 / Req 14.1: 遉ｾ蜩｡菴懈・ API
  *
  * POST /api/lifecycle/employees
- * - ADMIN または HR_MANAGER のみ実行可能
- * - body: CreateEmployeeInput (hireDate は YYYY-MM-DD)
- * - 201: 作成された社員の基本情報
- * - 422: バリデーションエラー
- * - 401 / 403: 認証/認可エラー
- * - 409: email 重複
- * - 503: サービス未初期化
+ * - ADMIN 縺ｾ縺溘・ HR_MANAGER 縺ｮ縺ｿ螳溯｡悟庄閭ｽ
+ * - body: CreateEmployeeInput (hireDate 縺ｯ YYYY-MM-DD)
+ * - 201: 菴懈・縺輔ｌ縺溽､ｾ蜩｡縺ｮ蝓ｺ譛ｬ諠・ｱ
+ * - 422: 繝舌Μ繝・・繧ｷ繝ｧ繝ｳ繧ｨ繝ｩ繝ｼ
+ * - 401 / 403: 隱崎ｨｼ/隱榊庄繧ｨ繝ｩ繝ｼ
+ * - 409: email 驥崎､・
+ * - 503: 繧ｵ繝ｼ繝薙せ譛ｪ蛻晄悄蛹・
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLifecycleService } from '@/lib/lifecycle/lifecycle-service-di'
 import {
@@ -19,11 +19,6 @@ import {
   type Employee,
 } from '@/lib/lifecycle/lifecycle-types'
 
-export {
-  setLifecycleServiceForTesting,
-  clearLifecycleServiceForTesting,
-} from '@/lib/lifecycle/lifecycle-service-di'
-
 const ALLOWED_ROLES = new Set<string>(['ADMIN', 'HR_MANAGER'])
 
 interface AuthorizedSession {
@@ -31,7 +26,7 @@ interface AuthorizedSession {
 }
 
 function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
+  serverSession: Awaited<ReturnType<typeof getAppSession>>,
 ): { ok: true; session: AuthorizedSession } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -59,7 +54,7 @@ function toResponsePayload(employee: Employee): Record<string, unknown> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const auth = authorize(await getServerSession())
+  const auth = authorize(await getAppSession())
   if (!auth.ok) return auth.response
 
   let body: unknown

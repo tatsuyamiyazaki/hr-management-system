@@ -1,17 +1,17 @@
 /**
- * Issue #46 / Task 13.5: ユーザー個別達成率サマリ API (Req 6.9)
+ * Issue #46 / Task 13.5: 繝ｦ繝ｼ繧ｶ繝ｼ蛟句挨驕疲・邇・し繝槭Μ API (Req 6.9)
  *
  * - GET /api/goals/achievements/cycles/[cycleId]/users/[userId]
- *   — ユーザー個別サマリ（本人 or HR_MANAGER/ADMIN）
+ *   窶・繝ｦ繝ｼ繧ｶ繝ｼ蛟句挨繧ｵ繝槭Μ・域悽莠ｺ or HR_MANAGER/ADMIN・・
  */
 import { type NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { EvaluationCycleNotFoundError } from '@/lib/goal/goal-achievement-types'
 import { getGoalAchievementService } from '@/lib/goal/goal-achievement-service-di'
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Auth helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 type UserRole = 'ADMIN' | 'HR_MANAGER' | 'MANAGER' | 'EMPLOYEE'
 
@@ -22,7 +22,7 @@ function isUserRole(value: unknown): value is UserRole {
 async function requireAuthenticated(): Promise<
   { ok: true; userId: string; role: UserRole } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -39,9 +39,9 @@ function isHrManagerOrAbove(role: UserRole): boolean {
   return role === 'HR_MANAGER' || role === 'ADMIN'
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // GET /api/goals/achievements/cycles/[cycleId]/users/[userId]
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function GET(
   _request: NextRequest,
@@ -52,7 +52,7 @@ export async function GET(
 
   const { cycleId, userId } = await params
 
-  // 本人か HR_MANAGER/ADMIN のみアクセス可
+  // 譛ｬ莠ｺ縺・HR_MANAGER/ADMIN 縺ｮ縺ｿ繧｢繧ｯ繧ｻ繧ｹ蜿ｯ
   if (guard.userId !== userId && !isHrManagerOrAbove(guard.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

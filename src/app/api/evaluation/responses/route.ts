@@ -7,11 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getEvaluationResponseService } from '@/lib/evaluation/evaluation-response-service-di'
 
-export {
-  setEvaluationResponseServiceForTesting,
-  clearEvaluationResponseServiceForTesting,
-} from '@/lib/evaluation/evaluation-response-service-di'
-
 const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

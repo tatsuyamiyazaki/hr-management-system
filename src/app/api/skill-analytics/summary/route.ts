@@ -9,11 +9,6 @@ import { NextResponse } from 'next/server'
 import { requireHrManager } from '@/lib/organization/organization-route-helpers'
 import { getSkillAnalyticsService } from '@/lib/skill/skill-analytics-di'
 
-export {
-  setSkillAnalyticsServiceForTesting,
-  clearSkillAnalyticsServiceForTesting,
-} from '@/lib/skill/skill-analytics-di'
-
 export async function GET(): Promise<NextResponse> {
   const guard = await requireHrManager()
   if (!guard.ok) return guard.response
@@ -22,10 +17,7 @@ export async function GET(): Promise<NextResponse> {
   try {
     svc = getSkillAnalyticsService()
   } catch {
-    return NextResponse.json(
-      { error: 'SkillAnalyticsService not initialized' },
-      { status: 503 },
-    )
+    return NextResponse.json({ error: 'SkillAnalyticsService not initialized' }, { status: 503 })
   }
 
   try {

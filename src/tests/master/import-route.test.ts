@@ -17,8 +17,9 @@ vi.mock('bullmq', () => ({
   Worker: vi.fn().mockImplementation(() => ({ on: vi.fn(), close: vi.fn() })),
 }))
 
-const { POST, setImportJobForTesting, clearImportJobForTesting } =
-  await import('@/app/api/masters/[resource]/import/route')
+const { POST } = await import('@/app/api/masters/[resource]/import/route')
+const { setImportJobForTesting, clearImportJobForTesting } =
+  await import('@/lib/master/master-job-di')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ヘルパー

@@ -102,8 +102,8 @@ describe('OneOnOneReminderService.scanMissingLogs', () => {
       expect(result.skipped).toBe(0)
       const notifications = await notificationRepo.listByUser('mgr-1')
       expect(notifications).toHaveLength(1)
-      expect(notifications[0].category).toBe('DEADLINE_ALERT')
-      expect(notifications[0].userId).toBe('mgr-1')
+      expect(notifications[0]!.category).toBe('DEADLINE_ALERT')
+      expect(notifications[0]!.userId).toBe('mgr-1')
     })
 
     it('31日前のログがある部下は通知される', async () => {
@@ -141,7 +141,7 @@ describe('OneOnOneReminderService.scanMissingLogs', () => {
       expect(result.notified).toBe(1)
       expect(result.skipped).toBe(0)
       const notifications = await notificationRepo.listByUser('mgr-2')
-      expect(notifications[0].title).toBe('1on1ログが未入力です')
+      expect(notifications[0]!.title).toBe('1on1ログが未入力です')
     })
 
     it('複数の部下が閾値超えの場合、全員通知される', async () => {
@@ -304,11 +304,11 @@ describe('OneOnOneReminderService.getEvaluationLinks', () => {
 
     // Assert
     expect(result).toHaveLength(2)
-    expect(result[0].sessionId).toBe('sess-1')
-    expect(result[0].hasLog).toBe(true)
-    expect(result[1].sessionId).toBe('sess-2')
-    expect(result[1].hasLog).toBe(false)
-    expect(result[1].logId).toBeNull()
+    expect(result[0]!.sessionId).toBe('sess-1')
+    expect(result[0]!.hasLog).toBe(true)
+    expect(result[1]!.sessionId).toBe('sess-2')
+    expect(result[1]!.hasLog).toBe(false)
+    expect(result[1]!.logId).toBeNull()
   })
 
   it('対象期間にセッションがない場合は空配列を返す', async () => {
@@ -354,7 +354,7 @@ describe('OneOnOneReminderService.listAllLogs', () => {
     // Assert
     expect(result.data).toHaveLength(5)
     expect(result.total).toBe(12)
-    expect(result.data[0].logId).toBe('log-1')
+    expect(result.data[0]!.logId).toBe('log-1')
   })
 
   it('page=2, limit=5 のとき次の5件を返す', async () => {
@@ -367,7 +367,7 @@ describe('OneOnOneReminderService.listAllLogs', () => {
 
     // Assert
     expect(result.data).toHaveLength(5)
-    expect(result.data[0].logId).toBe('log-6')
+    expect(result.data[0]!.logId).toBe('log-6')
   })
 
   it('最終ページが端数の場合、残り件数のみ返す', async () => {

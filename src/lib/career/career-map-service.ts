@@ -12,7 +12,7 @@ import {
   type EmployeeSkill,
 } from '@/lib/shared/skill-gap-calculator'
 import type { CareerGapResult, RoleNode, SkillGapItem, SubordinateWish } from './career-map-types'
-import type { CareerWish } from './career-wish-types'
+import { toCareerWishId, type CareerWish } from './career-wish-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Repository port
@@ -344,7 +344,7 @@ class PrismaCareerMapRepository implements CareerMapRepository {
     })
     if (!row) return null
     return {
-      id: row.id,
+      id: toCareerWishId(row.id),
       userId: row.userId,
       desiredRoleId: row.desiredRoleId,
       desiredRoleName: row.role?.name ?? '',

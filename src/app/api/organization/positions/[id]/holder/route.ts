@@ -19,11 +19,6 @@ import {
 import { getOrganizationService } from '@/lib/organization/organization-service-di'
 import { toPositionId, toUserId } from '@/lib/organization/organization-types'
 
-export {
-  setOrganizationServiceForTesting,
-  clearOrganizationServiceForTesting,
-} from '@/lib/organization/organization-service-di'
-
 const bodySchema = z.object({
   userId: z.string().min(1),
   /** null 指定で「離任のみ」扱い。省略時は URL の positionId を新ポジションとする */
@@ -31,11 +26,11 @@ const bodySchema = z.object({
 })
 
 interface RouteContext {
-  readonly params: Promise<{ id: string }> | { id: string }
+  readonly params: Promise<{ id: string }>
 }
 
 async function resolveParams(ctx: RouteContext): Promise<{ id: string }> {
-  return 'then' in ctx.params ? await ctx.params : ctx.params
+  return ctx.params
 }
 
 export async function POST(request: NextRequest, ctx: RouteContext): Promise<NextResponse> {

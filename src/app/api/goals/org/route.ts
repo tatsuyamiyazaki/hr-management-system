@@ -1,25 +1,20 @@
 /**
- * Issue #42 / Task 13.1: 組織目標 一覧・作成 API (Req 6.1, 6.2, 6.10)
+ * Issue #42 / Task 13.1: 邨・ｹ皮岼讓・荳隕ｧ繝ｻ菴懈・ API (Req 6.1, 6.2, 6.10)
  *
- * - GET  /api/goals/org            — 一覧取得（認証済みユーザー全員）
- *   * ?ownerType=ORGANIZATION|DEPARTMENT|TEAM でフィルタ可
- *   * ?ownerId=<id> でフィルタ可
- *   * ?tree=1&rootId=<id> でツリー構造を返す
- * - POST /api/goals/org            — 組織目標作成（HR_MANAGER / ADMIN のみ）
+ * - GET  /api/goals/org            窶・荳隕ｧ蜿門ｾ暦ｼ郁ｪ崎ｨｼ貂医∩繝ｦ繝ｼ繧ｶ繝ｼ蜈ｨ蜩｡・・
+ *   * ?ownerType=ORGANIZATION|DEPARTMENT|TEAM 縺ｧ繝輔ぅ繝ｫ繧ｿ蜿ｯ
+ *   * ?ownerId=<id> 縺ｧ繝輔ぅ繝ｫ繧ｿ蜿ｯ
+ *   * ?tree=1&rootId=<id> 縺ｧ繝・Μ繝ｼ讒矩繧定ｿ斐☆
+ * - POST /api/goals/org            窶・邨・ｹ皮岼讓吩ｽ懈・・・R_MANAGER / ADMIN 縺ｮ縺ｿ・・
  */
 import { type NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { GoalNotFoundError, orgGoalInputSchema, type GoalOwnerType } from '@/lib/goal/goal-types'
 import { getOrgGoalService } from '@/lib/goal/org-goal-service-di'
 
-export {
-  setOrgGoalServiceForTesting,
-  clearOrgGoalServiceForTesting,
-} from '@/lib/goal/org-goal-service-di'
-
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Auth helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 type UserRole = 'ADMIN' | 'HR_MANAGER' | 'MANAGER' | 'EMPLOYEE'
 
@@ -30,7 +25,7 @@ function isUserRole(value: unknown): value is UserRole {
 async function requireAuthenticated(): Promise<
   { ok: true; userId: string; role: UserRole } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -49,9 +44,9 @@ function isHrManagerOrAbove(role: UserRole): boolean {
 
 const VALID_OWNER_TYPES: readonly GoalOwnerType[] = ['ORGANIZATION', 'DEPARTMENT', 'TEAM']
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // GET /api/goals/org
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
@@ -94,9 +89,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // POST /api/goals/org
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()

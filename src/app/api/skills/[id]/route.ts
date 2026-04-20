@@ -13,17 +13,12 @@ import {
 } from '@/lib/skill/skill-route-helpers'
 import { getSkillService } from '@/lib/skill/skill-service-di'
 
-export {
-  setSkillServiceForTesting,
-  clearSkillServiceForTesting,
-} from '@/lib/skill/skill-service-di'
-
 interface RouteContext {
-  readonly params: Promise<{ id: string }> | { id: string }
+  readonly params: Promise<{ id: string }>
 }
 
 async function resolveParams(ctx: RouteContext): Promise<{ id: string }> {
-  return 'then' in ctx.params ? await ctx.params : ctx.params
+  return ctx.params
 }
 
 export async function PUT(request: NextRequest, ctx: RouteContext): Promise<NextResponse> {

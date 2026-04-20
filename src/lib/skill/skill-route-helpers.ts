@@ -1,13 +1,13 @@
 /**
- * Issue #36 / Task 11.2: 社員スキル API ルートの共通ヘルパ (Req 4.4, 4.5)
+ * Issue #36 / Task 11.2: 遉ｾ蜩｡繧ｹ繧ｭ繝ｫ API 繝ｫ繝ｼ繝医・蜈ｱ騾壹・繝ｫ繝・(Req 4.4, 4.5)
  *
- * - 認証ガード (requireAuthenticated)
- * - マネージャー以上ロールガード (requireManager)
- * - リクエストボディパース
- * - 監査コンテキスト抽出
- * - ドメインエラー → NextResponse マッピング
+ * - 隱崎ｨｼ繧ｬ繝ｼ繝・(requireAuthenticated)
+ * - 繝槭ロ繝ｼ繧ｸ繝｣繝ｼ莉･荳翫Ο繝ｼ繝ｫ繧ｬ繝ｼ繝・(requireManager)
+ * - 繝ｪ繧ｯ繧ｨ繧ｹ繝医・繝・ぅ繝代・繧ｹ
+ * - 逶｣譟ｻ繧ｳ繝ｳ繝・く繧ｹ繝域歓蜃ｺ
+ * - 繝峨Γ繧､繝ｳ繧ｨ繝ｩ繝ｼ 竊・NextResponse 繝槭ャ繝斐Φ繧ｰ
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { UserRole } from '@/lib/notification/notification-types'
 import type { SkillAuditContext } from './skill-service'
@@ -17,9 +17,9 @@ import {
   SkillNotFoundError,
 } from './skill-types'
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Session types
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export interface AuthenticatedSkillSession {
   readonly userId: string
@@ -33,18 +33,18 @@ function isUserRole(value: unknown): value is UserRole {
   return value === 'ADMIN' || value === 'HR_MANAGER' || value === 'MANAGER' || value === 'EMPLOYEE'
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Session guards
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 /**
- * 認証済みセッションを検証して userId / role を返す。
- * 未認証の場合 401 を返す。
+ * 隱崎ｨｼ貂医∩繧ｻ繝・す繝ｧ繝ｳ繧呈､懆ｨｼ縺励※ userId / role 繧定ｿ斐☆縲・
+ * 譛ｪ隱崎ｨｼ縺ｮ蝣ｴ蜷・401 繧定ｿ斐☆縲・
  */
 export async function requireAuthenticated(): Promise<
   { ok: true; session: AuthenticatedSkillSession } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -58,8 +58,8 @@ export async function requireAuthenticated(): Promise<
 }
 
 /**
- * MANAGER / HR_MANAGER / ADMIN のいずれかを要求 (Req 4.5)。
- * 未認証 → 401、ロール不足 → 403。
+ * MANAGER / HR_MANAGER / ADMIN 縺ｮ縺・★繧後°繧定ｦ∵ｱ・(Req 4.5)縲・
+ * 譛ｪ隱崎ｨｼ 竊・401縲√Ο繝ｼ繝ｫ荳崎ｶｳ 竊・403縲・
  */
 export async function requireManager(): Promise<
   { ok: true; session: AuthenticatedSkillSession } | { ok: false; response: NextResponse }
@@ -73,15 +73,15 @@ export async function requireManager(): Promise<
 }
 
 /**
- * MANAGER / HR_MANAGER / ADMIN かを判定するユーティリティ (Guard 済みセッション用)
+ * MANAGER / HR_MANAGER / ADMIN 縺九ｒ蛻､螳壹☆繧九Θ繝ｼ繝・ぅ繝ｪ繝・ぅ (Guard 貂医∩繧ｻ繝・す繝ｧ繝ｳ逕ｨ)
  */
 export function isManagerOrAbove(role: UserRole): boolean {
   return MANAGER_OR_ABOVE_ROLES.includes(role)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Request utilities
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function parseJsonBody(
   req: NextRequest,
@@ -106,13 +106,13 @@ export function extractSkillAuditContext(req: NextRequest): SkillAuditContext {
   return { ipAddress, userAgent }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Error mapping
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 /**
- * スキルドメイン例外を HTTP レスポンスに変換する。
- * 未知のエラーは 500 を返す。
+ * 繧ｹ繧ｭ繝ｫ繝峨Γ繧､繝ｳ萓句､悶ｒ HTTP 繝ｬ繧ｹ繝昴Φ繧ｹ縺ｫ螟画鋤縺吶ｋ縲・
+ * 譛ｪ遏･縺ｮ繧ｨ繝ｩ繝ｼ縺ｯ 500 繧定ｿ斐☆縲・
  */
 export function skillErrorToResponse(err: unknown): NextResponse {
   if (err instanceof SkillNotFoundError) {

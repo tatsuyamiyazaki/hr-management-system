@@ -1,21 +1,19 @@
 /**
- * Task 6.4 / Req 1.15: セッション手動失効 API
+ * Task 6.4 / Req 1.15: 繧ｻ繝・す繝ｧ繝ｳ謇句虚螟ｱ蜉ｹ API
  *
  * DELETE /api/auth/sessions/:sessionId
- * - 認証済みユーザーが指定セッションを失効させる
- * - 自分のセッションのみ失効可能 (他ユーザーのセッションは 404)
- * - 成功: 204 No Content
- * - 未所有 / 存在しない: 404
+ * - 隱崎ｨｼ貂医∩繝ｦ繝ｼ繧ｶ繝ｼ縺梧欠螳壹そ繝・す繝ｧ繝ｳ繧貞､ｱ蜉ｹ縺輔○繧・
+ * - 閾ｪ蛻・・繧ｻ繝・す繝ｧ繝ｳ縺ｮ縺ｿ螟ｱ蜉ｹ蜿ｯ閭ｽ (莉悶Θ繝ｼ繧ｶ繝ｼ縺ｮ繧ｻ繝・す繝ｧ繝ｳ縺ｯ 404)
+ * - 謌仙粥: 204 No Content
+ * - 譛ｪ謇譛・/ 蟄伜惠縺励↑縺・ 404
  */
 import { z } from 'zod'
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SessionNotFoundError } from '@/lib/auth/auth-types'
 import { getAuthService } from '@/lib/auth/auth-service-di'
 
-export { setAuthServiceForTesting, clearAuthServiceForTesting } from '@/lib/auth/auth-service-di'
-
-/** UUID 形式を強制してパス・トラバーサル等の不正値を早期排除する */
+/** UUID 蠖｢蠑上ｒ蠑ｷ蛻ｶ縺励※繝代せ繝ｻ繝医Λ繝舌・繧ｵ繝ｫ遲峨・荳肴ｭ｣蛟､繧呈掠譛滓賜髯､縺吶ｋ */
 const sessionIdParamSchema = z.object({
   sessionId: z.string().uuid('sessionId must be a valid UUID'),
 })
@@ -24,12 +22,12 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // next-auth-config.ts の session コールバックがトップレベルに設定する
+  // next-auth-config.ts 縺ｮ session 繧ｳ繝ｼ繝ｫ繝舌ャ繧ｯ縺後ヨ繝・・繝ｬ繝吶Ν縺ｫ險ｭ螳壹☆繧・
   const sess = serverSession as Record<string, unknown>
   const userId = typeof sess.userId === 'string' ? sess.userId : undefined
 
@@ -45,8 +43,8 @@ export async function DELETE(
 
   const { sessionId } = parsed.data
 
-  // Issue #107: AuthService 未初期化は 503 Service Unavailable として扱い、
-  // instrumentation.ts の設定不備が原因であることを伝える (500 よりも安全な手掛かり)。
+  // Issue #107: AuthService 譛ｪ蛻晄悄蛹悶・ 503 Service Unavailable 縺ｨ縺励※謇ｱ縺・・
+  // instrumentation.ts 縺ｮ險ｭ螳壻ｸ榊ｙ縺悟次蝗縺ｧ縺ゅｋ縺薙→繧剃ｼ昴∴繧・(500 繧医ｊ繧ょｮ牙・縺ｪ謇区寺縺九ｊ)縲・
   let authService: ReturnType<typeof getAuthService>
   try {
     authService = getAuthService()

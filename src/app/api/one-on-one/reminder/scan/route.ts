@@ -1,13 +1,13 @@
 /**
- * Issue #49 / Req 7.6: 1on1ログ未入力リマインダー手動トリガー API
+ * Issue #49 / Req 7.6: 1on1繝ｭ繧ｰ譛ｪ蜈･蜉帙Μ繝槭う繝ｳ繝繝ｼ謇句虚繝医Μ繧ｬ繝ｼ API
  *
  * POST /api/one-on-one/reminder/scan
- * - ADMIN のみ実行可能
+ * - ADMIN 縺ｮ縺ｿ螳溯｡悟庄閭ｽ
  * - 200: { notified: number; skipped: number }
- * - 401 / 403: 認証/認可エラー
- * - 503: サービス未初期化
+ * - 401 / 403: 隱崎ｨｼ/隱榊庄繧ｨ繝ｩ繝ｼ
+ * - 503: 繧ｵ繝ｼ繝薙せ譛ｪ蛻晄悄蛹・
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createOneOnOneReminderService,
@@ -15,22 +15,11 @@ import {
 } from '@/lib/one-on-one/one-on-one-reminder-service'
 import { createInMemoryNotificationRepository } from '@/lib/notification/notification-repository'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DI（テスト差し替え用）
-// ─────────────────────────────────────────────────────────────────────────────
-
-let _service: OneOnOneReminderService | null = null
-
-export function setOneOnOneReminderServiceForTesting(s: OneOnOneReminderService): void {
-  _service = s
-}
-
-export function clearOneOnOneReminderServiceForTesting(): void {
-  _service = null
-}
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+// DI・医ユ繧ｹ繝亥ｷｮ縺玲崛縺育畑・・
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 function getService(): OneOnOneReminderService {
-  if (_service) return _service
   return createOneOnOneReminderService({
     subordinateRepo: {
       async findAllSubordinatesWithLastLog() {
@@ -49,12 +38,12 @@ function getService(): OneOnOneReminderService {
   })
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 認可
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
+// 隱榊庄
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
+  serverSession: Awaited<ReturnType<typeof getAppSession>>,
 ): { ok: true } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -67,12 +56,12 @@ function authorize(
   return { ok: true }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // POST /api/one-on-one/reminder/scan
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function POST(_req: NextRequest): Promise<NextResponse> {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   const auth = authorize(serverSession)
   if (!auth.ok) return auth.response
 

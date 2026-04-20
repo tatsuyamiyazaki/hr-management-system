@@ -1,16 +1,16 @@
 /**
- * Issue #46 / Task 13.5: 評価サイクル全体サマリ API (Req 6.9)
+ * Issue #46 / Task 13.5: 隧穂ｾ｡繧ｵ繧､繧ｯ繝ｫ蜈ｨ菴薙し繝槭Μ API (Req 6.9)
  *
- * - GET /api/goals/achievements/cycles/[cycleId]/summary — サイクル全体サマリ（HR_MANAGER/ADMIN）
+ * - GET /api/goals/achievements/cycles/[cycleId]/summary 窶・繧ｵ繧､繧ｯ繝ｫ蜈ｨ菴薙し繝槭Μ・・R_MANAGER/ADMIN・・
  */
 import { type NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { EvaluationCycleNotFoundError } from '@/lib/goal/goal-achievement-types'
 import { getGoalAchievementService } from '@/lib/goal/goal-achievement-service-di'
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // Auth helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 type UserRole = 'ADMIN' | 'HR_MANAGER' | 'MANAGER' | 'EMPLOYEE'
 
@@ -21,7 +21,7 @@ function isUserRole(value: unknown): value is UserRole {
 async function requireAuthenticated(): Promise<
   { ok: true; userId: string; role: UserRole } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
@@ -38,9 +38,9 @@ function isHrManagerOrAbove(role: UserRole): boolean {
   return role === 'HR_MANAGER' || role === 'ADMIN'
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 // GET /api/goals/achievements/cycles/[cycleId]/summary
-// ─────────────────────────────────────────────────────────────────────────────
+// 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
 export async function GET(
   _request: NextRequest,

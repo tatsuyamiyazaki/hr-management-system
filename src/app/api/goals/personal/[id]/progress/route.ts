@@ -13,11 +13,6 @@ import {
 } from '@/lib/skill/skill-route-helpers'
 import { getGoalProgressService } from '@/lib/goal/goal-progress-service-di'
 
-export {
-  setGoalProgressServiceForTesting,
-  clearGoalProgressServiceForTesting,
-} from '@/lib/goal/goal-progress-service-di'
-
 interface RouteContext {
   params: Promise<{ id: string }>
 }

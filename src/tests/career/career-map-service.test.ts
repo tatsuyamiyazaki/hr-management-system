@@ -10,7 +10,7 @@ import type {
   RoleSkillRequirementRow,
   SubordinateRow,
 } from '@/lib/career/career-map-service'
-import type { CareerWish } from '@/lib/career/career-wish-types'
+import { toCareerWishId, type CareerWish } from '@/lib/career/career-wish-types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -54,7 +54,7 @@ function makeSubordinate(overrides: Partial<SubordinateRow> = {}): SubordinateRo
 
 function makeCareerWish(overrides: Partial<CareerWish> = {}): CareerWish {
   return {
-    id: 'wish-1',
+    id: toCareerWishId('wish-1'),
     userId: 'user-sub',
     desiredRoleId: 'role-2',
     desiredRoleName: 'Senior Engineer',

@@ -11,8 +11,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isMasterResource } from '@/lib/master/master-csv'
 import { getImportJob } from '@/lib/master/master-job-di'
 
-export { setImportJobForTesting, clearImportJobForTesting } from '@/lib/master/master-job-di'
-
 const MAX_CSV_BYTES = 5 * 1024 * 1024 // 5MB
 
 export async function POST(

@@ -56,6 +56,9 @@ enum AuditAction {
   EVALUATION_FINALIZED
   // データエクスポートイベント (17.2)
   DATA_EXPORT
+  // 通知・アクセス制御イベント
+  CUSTOM_BROADCAST_SENT
+  ACCESS_DENIED
 }
 
 /// 監査ログリソース種別
@@ -72,6 +75,7 @@ enum AuditResourceType {
   MASTER_DATA
   EXPORT_JOB
   SYSTEM_CONFIG
+  NOTIFICATION
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -16,11 +16,6 @@ import {
 import { getOrganizationService } from '@/lib/organization/organization-service-di'
 import { orgChangeSchema } from '@/lib/organization/organization-types'
 
-export {
-  setOrganizationServiceForTesting,
-  clearOrganizationServiceForTesting,
-} from '@/lib/organization/organization-service-di'
-
 const bodySchema = z.object({ changes: z.array(orgChangeSchema) })
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

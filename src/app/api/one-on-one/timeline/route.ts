@@ -10,11 +10,6 @@ import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getOneOnOneLogService } from '@/lib/one-on-one/one-on-one-log-service-di'
 import { OneOnOneLogAccessDeniedError } from '@/lib/one-on-one/one-on-one-log-service'
 
-export {
-  setOneOnOneLogServiceForTesting,
-  clearOneOnOneLogServiceForTesting,
-} from '@/lib/one-on-one/one-on-one-log-service-di'
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response
@@ -24,10 +19,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const managerId = searchParams.get('managerId')
 
   if (!employeeId || !managerId) {
-    return NextResponse.json(
-      { error: 'employeeId and managerId are required' },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'employeeId and managerId are required' }, { status: 400 })
   }
 
   let svc: ReturnType<typeof getOneOnOneLogService>

@@ -9,13 +9,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getExportJob, getImportJob } from '@/lib/master/master-job-di'
 
-export {
-  setImportJobForTesting,
-  clearImportJobForTesting,
-  setExportJobForTesting,
-  clearExportJobForTesting,
-} from '@/lib/master/master-job-di'
-
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> },

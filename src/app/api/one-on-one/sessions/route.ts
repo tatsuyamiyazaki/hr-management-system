@@ -13,11 +13,6 @@ import {
 } from '@/lib/skill/skill-route-helpers'
 import { getOneOnOneSessionService } from '@/lib/one-on-one/one-on-one-session-service-di'
 
-export {
-  setOneOnOneSessionServiceForTesting,
-  clearOneOnOneSessionServiceForTesting,
-} from '@/lib/one-on-one/one-on-one-session-service-di'
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireManager()
   if (!guard.ok) return guard.response

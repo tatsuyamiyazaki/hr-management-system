@@ -1,17 +1,17 @@
 /**
- * Issue #29 / Req 14.2, 14.3, 14.4: 社員ステータス更新 API
+ * Issue #29 / Req 14.2, 14.3, 14.4: 遉ｾ蜩｡繧ｹ繝・・繧ｿ繧ｹ譖ｴ譁ｰ API
  *
  * PATCH /api/lifecycle/employees/{id}/status
- * - ADMIN または HR_MANAGER のみ実行可能
+ * - ADMIN 縺ｾ縺溘・ HR_MANAGER 縺ｮ縺ｿ螳溯｡悟庄閭ｽ
  * - body: { newStatus, effectiveDate (YYYY-MM-DD), reason? }
- * - 200: 更新成功
- * - 422: バリデーションエラー
- * - 401 / 403: 認証/認可エラー
- * - 404: 社員が存在しない
- * - 409: 不正なステータス遷移
- * - 503: サービス未初期化
+ * - 200: 譖ｴ譁ｰ謌仙粥
+ * - 422: 繝舌Μ繝・・繧ｷ繝ｧ繝ｳ繧ｨ繝ｩ繝ｼ
+ * - 401 / 403: 隱崎ｨｼ/隱榊庄繧ｨ繝ｩ繝ｼ
+ * - 404: 遉ｾ蜩｡縺悟ｭ伜惠縺励↑縺・
+ * - 409: 荳肴ｭ｣縺ｪ繧ｹ繝・・繧ｿ繧ｹ驕ｷ遘ｻ
+ * - 503: 繧ｵ繝ｼ繝薙せ譛ｪ蛻晄悄蛹・
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLifecycleService } from '@/lib/lifecycle/lifecycle-service-di'
 import {
@@ -27,7 +27,7 @@ interface AuthorizedSession {
 }
 
 function authorize(
-  serverSession: Awaited<ReturnType<typeof getServerSession>>,
+  serverSession: Awaited<ReturnType<typeof getAppSession>>,
 ): { ok: true; session: AuthorizedSession } | { ok: false; response: NextResponse } {
   if (!serverSession?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
@@ -45,7 +45,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const auth = authorize(await getServerSession())
+  const auth = authorize(await getAppSession())
   if (!auth.ok) return auth.response
 
   const { id } = await params

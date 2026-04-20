@@ -8,11 +8,6 @@ import { evaluationResponseInputSchema } from '@/lib/evaluation/evaluation-respo
 import { parseJsonBody, requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getEvaluationResponseService } from '@/lib/evaluation/evaluation-response-service-di'
 
-export {
-  setEvaluationResponseServiceForTesting,
-  clearEvaluationResponseServiceForTesting,
-} from '@/lib/evaluation/evaluation-response-service-di'
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireAuthenticated()
   if (!guard.ok) return guard.response

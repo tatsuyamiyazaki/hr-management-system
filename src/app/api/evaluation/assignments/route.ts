@@ -15,11 +15,6 @@ import {
 import { parseJsonBody, requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getReviewAssignmentService } from '@/lib/evaluation/review-assignment-service-di'
 
-export {
-  setReviewAssignmentServiceForTesting,
-  clearReviewAssignmentServiceForTesting,
-} from '@/lib/evaluation/review-assignment-service-di'
-
 const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

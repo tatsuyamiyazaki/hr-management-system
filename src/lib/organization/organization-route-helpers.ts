@@ -1,11 +1,11 @@
 /**
- * Issue #27: 組織管理 API ルートの共通ヘルパ
+ * Issue #27: 邨・ｹ皮ｮ｡逅・API 繝ｫ繝ｼ繝医・蜈ｱ騾壹・繝ｫ繝・
  *
- * - HR_MANAGER セッションガード (Requirement 3.3)
- * - 監査コンテキスト抽出 (ipAddress / userAgent)
- * - ドメインエラー → NextResponse マッピング
+ * - HR_MANAGER 繧ｻ繝・す繝ｧ繝ｳ繧ｬ繝ｼ繝・(Requirement 3.3)
+ * - 逶｣譟ｻ繧ｳ繝ｳ繝・く繧ｹ繝域歓蜃ｺ (ipAddress / userAgent)
+ * - 繝峨Γ繧､繝ｳ繧ｨ繝ｩ繝ｼ 竊・NextResponse 繝槭ャ繝斐Φ繧ｰ
  */
-import { getServerSession } from 'next-auth'
+import { getAppSession } from '@/lib/auth/app-session'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   CyclicReferenceError,
@@ -20,13 +20,13 @@ export interface HrManagerSession {
 }
 
 /**
- * HR_MANAGER / ADMIN セッションを検証して userId を返す。
- * 401 / 403 の場合は NextResponse を返す。
+ * HR_MANAGER / ADMIN 繧ｻ繝・す繝ｧ繝ｳ繧呈､懆ｨｼ縺励※ userId 繧定ｿ斐☆縲・
+ * 401 / 403 縺ｮ蝣ｴ蜷医・ NextResponse 繧定ｿ斐☆縲・
  */
 export async function requireHrManager(): Promise<
   { ok: true; session: HrManagerSession } | { ok: false; response: NextResponse }
 > {
-  const serverSession = await getServerSession()
+  const serverSession = await getAppSession()
   if (!serverSession?.user?.email) {
     return {
       ok: false,
@@ -45,7 +45,7 @@ export async function requireHrManager(): Promise<
   return { ok: true, session: { userId, role: role as HrManagerSession['role'] } }
 }
 
-/** リクエストから監査コンテキストを抽出する */
+/** 繝ｪ繧ｯ繧ｨ繧ｹ繝医°繧臥屮譟ｻ繧ｳ繝ｳ繝・く繧ｹ繝医ｒ謚ｽ蜃ｺ縺吶ｋ */
 export function extractOrganizationAuditContext(
   req: NextRequest,
   userId: string,
@@ -58,7 +58,7 @@ export function extractOrganizationAuditContext(
   return { userId, ipAddress, userAgent }
 }
 
-/** リクエストボディを JSON としてパースする */
+/** 繝ｪ繧ｯ繧ｨ繧ｹ繝医・繝・ぅ繧・JSON 縺ｨ縺励※繝代・繧ｹ縺吶ｋ */
 export async function parseJsonBody(
   req: NextRequest,
 ): Promise<{ ok: true; body: unknown } | { ok: false; response: NextResponse }> {
@@ -73,7 +73,7 @@ export async function parseJsonBody(
   }
 }
 
-/** 組織ドメイン例外を HTTP レスポンスに変換する。 */
+/** 邨・ｹ斐ラ繝｡繧､繝ｳ萓句､悶ｒ HTTP 繝ｬ繧ｹ繝昴Φ繧ｹ縺ｫ螟画鋤縺吶ｋ縲・*/
 export function organizationErrorToResponse(err: unknown): NextResponse {
   if (err instanceof CyclicReferenceError) {
     return NextResponse.json(
