@@ -12,11 +12,6 @@ import {
   CycleAggregationInvalidStatusError,
 } from '@/lib/evaluation/cycle-aggregation-types'
 
-export {
-  setCycleAggregationServiceForTesting,
-  clearCycleAggregationServiceForTesting,
-} from '@/lib/evaluation/cycle-aggregation-service-di'
-
 const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 export async function POST(

@@ -8,11 +8,6 @@ import { requireAuthenticated } from '@/lib/skill/skill-route-helpers'
 import { getEvaluationProgressService } from '@/lib/evaluation/evaluation-progress-service-di'
 import { EvaluationProgressCycleNotFoundError } from '@/lib/evaluation/evaluation-progress-types'
 
-export {
-  setEvaluationProgressServiceForTesting,
-  clearEvaluationProgressServiceForTesting,
-} from '@/lib/evaluation/evaluation-progress-service-di'
-
 const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
 
 export async function GET(
