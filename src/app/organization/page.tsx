@@ -21,6 +21,12 @@ import { OrgChangeError } from '@/lib/organization/organization-types'
 import { hasStructuralDiff, flattenNodes } from '@/lib/organization/org-tree-ops'
 import { OrganizationChart } from '@/components/organization/OrganizationChart'
 
+interface OrgTreeEnvelope {
+  readonly success?: boolean
+  readonly data?: OrgTree
+  readonly error?: string
+}
+
 type LoadState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
@@ -47,10 +53,11 @@ export default function OrganizationPage(): ReactElement {
     void (async () => {
       try {
         const res = await fetch(ORG_TREE_URL, { cache: 'no-store' })
-        if (!res.ok) {
-          throw new Error(`Failed to load org tree: ${res.status}`)
+        const payload = ((await res.json().catch(() => ({}))) ?? {}) as OrgTreeEnvelope
+        if (!res.ok || !payload.data) {
+          throw new Error(payload.error ?? `Failed to load org tree: ${res.status}`)
         }
-        const tree = (await res.json()) as OrgTree
+        const tree = payload.data
         if (cancelled) return
         setLoadState({ kind: 'ready', original: tree, current: tree })
       } catch (err) {

@@ -1,6 +1,15 @@
+import { createDevelopmentDashboardService } from './dashboard-dev-service'
 import type { DashboardService } from './dashboard-types'
 
 let service: DashboardService | null = null
+
+function isDevelopmentDashboardFallbackEnabled(): boolean {
+  if (process.env.NODE_ENV !== 'development') {
+    return false
+  }
+
+  return process.env.DEV_AUTH_BYPASS === 'true' || process.env.DEV_AUTH_BYPASS === '1'
+}
 
 export function setDashboardServiceForTesting(svc: DashboardService): void {
   service = svc
@@ -15,6 +24,10 @@ export function initDashboardService(svc: DashboardService): void {
 }
 
 export function getDashboardService(): DashboardService {
+  if (!service && isDevelopmentDashboardFallbackEnabled()) {
+    service = createDevelopmentDashboardService()
+  }
+
   if (!service) {
     throw new Error(
       'DashboardService is not initialized. ' +

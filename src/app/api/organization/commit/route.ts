@@ -16,7 +16,28 @@ import {
 import { getOrganizationService } from '@/lib/organization/organization-service-di'
 import { orgChangeSchema } from '@/lib/organization/organization-types'
 
-const bodySchema = z.object({ changes: z.array(orgChangeSchema) })
+const operationsSchema = z.object({
+  operations: z.array(
+    z.object({
+      nodeId: z.string().min(1),
+      newParentId: z.string().min(1).nullable(),
+    }),
+  ),
+})
+
+const bodySchema = z.union([z.object({ changes: z.array(orgChangeSchema) }), operationsSchema])
+
+function normalizeChanges(body: z.infer<typeof bodySchema>) {
+  if ('changes' in body) {
+    return body.changes
+  }
+
+  return body.operations.map((operation) => ({
+    type: 'MoveDepartment' as const,
+    departmentId: operation.nodeId,
+    newParentId: operation.newParentId,
+  }))
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await requireHrManager()
@@ -38,8 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const changes = normalizeChanges(validated.data)
     const context = extractOrganizationAuditContext(request, guard.session.userId)
-    const result = await svc.commitHierarchyChange(validated.data.changes, context)
+    const result = await svc.commitHierarchyChange(changes, context)
     if (!result.ok) {
       return NextResponse.json(
         {
@@ -50,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 422 },
       )
     }
-    return NextResponse.json({ success: true }, { status: 200 })
+    return NextResponse.json({ success: true, appliedOperations: changes.length }, { status: 200 })
   } catch (err) {
     return organizationErrorToResponse(err)
   }
