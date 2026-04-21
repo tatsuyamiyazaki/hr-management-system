@@ -6,6 +6,9 @@ import type {
   TotalEvaluationAuditLogger,
   TotalEvaluationBoundaryThreshold,
   TotalEvaluationCalculationInput,
+  TotalEvaluationCorrectionInput,
+  TotalEvaluationCycleCloser,
+  TotalEvaluationFinalizeInput,
   TotalEvaluationJobQueue,
   TotalEvaluationOverrideWeightInput,
   TotalEvaluationPreview,
@@ -20,6 +23,8 @@ import {
   TotalEvaluationGradeNotFoundError,
   TotalEvaluationInputNotFoundError,
   TotalEvaluationJobQueueNotConfiguredError,
+  TotalEvaluationNotFinalizedError,
+  TotalEvaluationResultNotFoundError,
 } from './total-evaluation-types'
 
 export interface TotalEvaluationServiceDeps {
@@ -28,6 +33,7 @@ export interface TotalEvaluationServiceDeps {
   readonly incentiveAdjustmentProvider: IncentiveAdjustmentProvider
   readonly gradeThresholdProvider?: GradeThresholdProvider
   readonly auditLogger?: TotalEvaluationAuditLogger
+  readonly cycleCloser?: TotalEvaluationCycleCloser
   readonly jobQueue?: TotalEvaluationJobQueue
   readonly clock?: () => Date
 }
@@ -122,6 +128,7 @@ class TotalEvaluationServiceImpl implements TotalEvaluationService {
   private readonly incentiveAdjustmentProvider: IncentiveAdjustmentProvider
   private readonly gradeThresholdProvider?: GradeThresholdProvider
   private readonly auditLogger?: TotalEvaluationAuditLogger
+  private readonly cycleCloser?: TotalEvaluationCycleCloser
   private readonly jobQueue?: TotalEvaluationJobQueue
   private readonly clock: () => Date
 
@@ -131,6 +138,7 @@ class TotalEvaluationServiceImpl implements TotalEvaluationService {
     this.incentiveAdjustmentProvider = deps.incentiveAdjustmentProvider
     this.gradeThresholdProvider = deps.gradeThresholdProvider
     this.auditLogger = deps.auditLogger
+    this.cycleCloser = deps.cycleCloser
     this.jobQueue = deps.jobQueue
     this.clock = deps.clock ?? (() => new Date())
   }
@@ -255,6 +263,88 @@ class TotalEvaluationServiceImpl implements TotalEvaluationService {
     }
 
     return result
+  }
+
+  async finalize(input: TotalEvaluationFinalizeInput): Promise<TotalEvaluationResult[]> {
+    const finalizedAt = this.clock()
+    const results = await this.repository.finalizeResults(input.cycleId, finalizedAt)
+
+    if (this.cycleCloser) {
+      await this.cycleCloser.closeCycle(input.cycleId)
+    }
+
+    if (this.auditLogger) {
+      await this.auditLogger.emit({
+        userId: input.finalizedBy,
+        action: 'EVALUATION_FINALIZED',
+        resourceType: 'EVALUATION_CYCLE',
+        resourceId: input.cycleId,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        before: null,
+        after: {
+          cycleId: input.cycleId,
+          finalizedCount: results.length,
+          finalizedAt: finalizedAt.toISOString(),
+        },
+      })
+    }
+
+    return results
+  }
+
+  async correctAfterFinalize(
+    input: TotalEvaluationCorrectionInput,
+  ): Promise<TotalEvaluationResult> {
+    const current = await this.repository.findResult(input.cycleId, input.subjectId)
+    if (!current) throw new TotalEvaluationResultNotFoundError(input.cycleId, input.subjectId)
+    if (current.status !== 'FINALIZED') {
+      throw new TotalEvaluationNotFinalizedError(input.cycleId, input.subjectId)
+    }
+
+    const finalScore =
+      input.performanceScore * input.performanceWeight +
+      input.goalScore * input.goalWeight +
+      input.feedbackScore * input.feedbackWeight
+
+    const corrected: TotalEvaluationResult = {
+      ...current,
+      performanceScore: input.performanceScore,
+      goalScore: input.goalScore,
+      feedbackScore: input.feedbackScore,
+      incentiveAdjustment: input.incentiveAdjustment,
+      performanceWeight: input.performanceWeight,
+      goalWeight: input.goalWeight,
+      feedbackWeight: input.feedbackWeight,
+      finalScore: roundScore(finalScore),
+      status: 'FINALIZED',
+      finalizedAt: current.finalizedAt ?? this.clock(),
+    }
+
+    await this.repository.createCorrection({
+      cycleId: input.cycleId,
+      subjectId: input.subjectId,
+      before: { ...current },
+      after: { ...corrected },
+      reason: input.reason,
+      correctedBy: input.correctedBy,
+    })
+    await this.repository.upsertCalculatedResults([corrected])
+
+    if (this.auditLogger) {
+      await this.auditLogger.emit({
+        userId: input.correctedBy,
+        action: 'RECORD_UPDATE',
+        resourceType: 'EVALUATION',
+        resourceId: input.subjectId,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        before: { ...current },
+        after: { ...corrected, reason: input.reason },
+      })
+    }
+
+    return corrected
   }
 
   private async calculateInput(
