@@ -1,14 +1,16 @@
 /**
- * Issue #66 / Task 19.1: TotalEvaluationService tests (Req 12.1, 12.2, 12.4)
+ * Issue #67 / Task 19.2: TotalEvaluationService tests (Req 12.3, 12.6)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTotalEvaluationService } from '@/lib/total-evaluation/total-evaluation-service'
 import type {
-  TotalEvaluationCalculationInput,
-  TotalEvaluationRepository,
   GradeWeightProvider,
   IncentiveAdjustmentProvider,
+  TotalEvaluationBoundaryThreshold,
+  TotalEvaluationCalculationInput,
   TotalEvaluationJobQueue,
+  TotalEvaluationRepository,
+  TotalEvaluationWeightOverride,
 } from '@/lib/total-evaluation/total-evaluation-types'
 
 function makeInput(
@@ -39,6 +41,13 @@ function makeRepo(
       ),
     upsertCalculatedResults: vi.fn().mockResolvedValue(undefined),
     listPreviewResults: vi.fn().mockResolvedValue([]),
+    listWeightOverrides: vi.fn().mockResolvedValue([]),
+    findWeightOverride: vi.fn().mockResolvedValue(null),
+    upsertWeightOverride: vi.fn().mockImplementation(async (override) => ({
+      id: 'override-1',
+      adjustedAt: new Date('2026-04-02T00:00:00.000Z'),
+      ...override,
+    })),
   }
 }
 
@@ -61,12 +70,39 @@ function makeIncentives(adjustments = new Map<string, number>()): IncentiveAdjus
   }
 }
 
+function makeOverride(
+  overrides: Partial<TotalEvaluationWeightOverride> = {},
+): TotalEvaluationWeightOverride {
+  return {
+    id: 'override-1',
+    cycleId: 'cycle-1',
+    subjectId: 'user-1',
+    performanceWeight: 0.4,
+    goalWeight: 0.4,
+    feedbackWeight: 0.2,
+    reason: '評価会議で調整',
+    adjustedBy: 'hr-1',
+    adjustedAt: new Date('2026-04-02T00:00:00.000Z'),
+    ...overrides,
+  }
+}
+
+function makeBoundaryThresholds(
+  thresholds: readonly number[] = [80],
+): readonly TotalEvaluationBoundaryThreshold[] {
+  return thresholds.map((score, index) => ({
+    id: `threshold-${index + 1}`,
+    label: `T${index + 1}`,
+    score,
+  }))
+}
+
 describe('TotalEvaluationService.calculateAll', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('業績・目標・インセンティブ加算後360度点を等級ウェイトで加重平均する', async () => {
+  it('等級ウェイトとインセンティブ補正で最終スコアを計算する', async () => {
     const repo = makeRepo([makeInput()])
     const svc = createTotalEvaluationService({
       repository: repo,
@@ -96,55 +132,31 @@ describe('TotalEvaluationService.calculateAll', () => {
     expect(repo.upsertCalculatedResults).toHaveBeenCalledWith(results)
   })
 
-  it('対象社員ごとに等級マスタのデフォルトウェイトを適用する', async () => {
-    const repo = makeRepo([
-      makeInput({ subjectId: 'user-1', gradeId: 'grade-a' }),
-      makeInput({
-        subjectId: 'user-2',
-        gradeId: 'grade-b',
-        performanceScore: 60,
-        goalScore: 100,
-        feedbackScore: 80,
-      }),
-    ])
-    const gradeWeightProvider = makeGradeProvider({
-      findGradeWeights: vi.fn().mockImplementation(async (gradeId: string) =>
-        gradeId === 'grade-b'
-          ? {
-              gradeId,
-              label: 'G4',
-              performanceWeight: 0.2,
-              goalWeight: 0.5,
-              feedbackWeight: 0.3,
-            }
-          : {
-              gradeId,
-              label: 'G3',
-              performanceWeight: 0.5,
-              goalWeight: 0.3,
-              feedbackWeight: 0.2,
-            },
-      ),
-    })
+  it('個別ウェイト上書きがある社員は上書きウェイトで再計算する', async () => {
+    const repo = makeRepo([makeInput()])
+    repo.listWeightOverrides = vi.fn().mockResolvedValue([makeOverride()])
     const svc = createTotalEvaluationService({
       repository: repo,
-      gradeWeightProvider,
-      incentiveAdjustmentProvider: makeIncentives(),
+      gradeWeightProvider: makeGradeProvider(),
+      incentiveAdjustmentProvider: makeIncentives(new Map([['user-1', 5]])),
     })
 
-    const results = await svc.calculateAll('cycle-1')
+    const [result] = await svc.calculateAll('cycle-1')
 
-    expect(results.map((r) => ({ subjectId: r.subjectId, finalScore: r.finalScore }))).toEqual([
-      { subjectId: 'user-1', finalScore: 79 },
-      { subjectId: 'user-2', finalScore: 86 },
-    ])
-    expect(gradeWeightProvider.findGradeWeights).toHaveBeenCalledWith('grade-a')
-    expect(gradeWeightProvider.findGradeWeights).toHaveBeenCalledWith('grade-b')
+    expect(result).toEqual(
+      expect.objectContaining({
+        performanceWeight: 0.4,
+        goalWeight: 0.4,
+        feedbackWeight: 0.2,
+        feedbackScore: 95,
+        finalScore: 79,
+      }),
+    )
   })
 })
 
 describe('TotalEvaluationService.previewBeforeFinalize', () => {
-  it('確定前プレビューとして各社員の内訳を返す', async () => {
+  it('確定前プレビューとして一覧を返す', async () => {
     const previewRows = [
       {
         id: 'ter-1',
@@ -170,12 +182,129 @@ describe('TotalEvaluationService.previewBeforeFinalize', () => {
       repository: repo,
       gradeWeightProvider: makeGradeProvider(),
       incentiveAdjustmentProvider: makeIncentives(),
+      gradeThresholdProvider: {
+        listThresholds: vi.fn().mockResolvedValue([]),
+      },
     })
 
     await expect(svc.previewBeforeFinalize('cycle-1')).resolves.toEqual({
       cycleId: 'cycle-1',
-      results: previewRows,
+      results: [
+        {
+          ...previewRows[0],
+          hasWeightOverride: false,
+          isNearGradeThreshold: false,
+          nearestGradeThresholdScore: null,
+          thresholdDistancePercent: null,
+        },
+      ],
     })
+  })
+
+  it('上書き有無と等級境界フラグを付けて返す', async () => {
+    const previewRows = [
+      {
+        id: 'ter-1',
+        cycleId: 'cycle-1',
+        subjectId: 'user-1',
+        gradeId: 'grade-a',
+        gradeLabel: 'G3',
+        performanceScore: 80,
+        goalScore: 70,
+        feedbackScore: 95,
+        incentiveAdjustment: 5,
+        performanceWeight: 0.4,
+        goalWeight: 0.4,
+        feedbackWeight: 0.2,
+        finalScore: 78,
+        status: 'CALCULATED' as const,
+        calculatedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+    ]
+    const repo = makeRepo([])
+    repo.listPreviewResults = vi.fn().mockResolvedValue(previewRows)
+    repo.listWeightOverrides = vi.fn().mockResolvedValue([makeOverride()])
+    const svc = createTotalEvaluationService({
+      repository: repo,
+      gradeWeightProvider: makeGradeProvider(),
+      incentiveAdjustmentProvider: makeIncentives(),
+      gradeThresholdProvider: {
+        listThresholds: vi.fn().mockResolvedValue(makeBoundaryThresholds([80, 60])),
+      },
+    })
+
+    await expect(svc.previewBeforeFinalize('cycle-1')).resolves.toEqual({
+      cycleId: 'cycle-1',
+      results: [
+        {
+          ...previewRows[0],
+          hasWeightOverride: true,
+          isNearGradeThreshold: true,
+          nearestGradeThresholdScore: 80,
+          thresholdDistancePercent: 0.025,
+        },
+      ],
+    })
+  })
+})
+
+describe('TotalEvaluationService.overrideWeight', () => {
+  it('上書きウェイトを保存して再計算し、監査ログを記録する', async () => {
+    const repo = makeRepo([makeInput()])
+    const auditLogger = { emit: vi.fn().mockResolvedValue(undefined) }
+    const svc = createTotalEvaluationService({
+      repository: repo,
+      gradeWeightProvider: makeGradeProvider(),
+      incentiveAdjustmentProvider: makeIncentives(new Map([['user-1', 5]])),
+      auditLogger,
+    })
+
+    const result = await svc.overrideWeight({
+      cycleId: 'cycle-1',
+      subjectId: 'user-1',
+      performanceWeight: 0.4,
+      goalWeight: 0.4,
+      feedbackWeight: 0.2,
+      reason: '評価会議で調整',
+      adjustedBy: 'hr-1',
+      ipAddress: '127.0.0.1',
+      userAgent: 'vitest',
+    })
+
+    expect(repo.upsertWeightOverride).toHaveBeenCalledWith({
+      cycleId: 'cycle-1',
+      subjectId: 'user-1',
+      performanceWeight: 0.4,
+      goalWeight: 0.4,
+      feedbackWeight: 0.2,
+      reason: '評価会議で調整',
+      adjustedBy: 'hr-1',
+    })
+    expect(result).toEqual(
+      expect.objectContaining({
+        performanceWeight: 0.4,
+        goalWeight: 0.4,
+        feedbackWeight: 0.2,
+        feedbackScore: 95,
+        finalScore: 79,
+      }),
+    )
+    expect(auditLogger.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'hr-1',
+        action: 'RECORD_UPDATE',
+        resourceType: 'EVALUATION',
+        resourceId: 'user-1',
+        ipAddress: '127.0.0.1',
+        userAgent: 'vitest',
+        before: null,
+        after: expect.objectContaining({
+          cycleId: 'cycle-1',
+          subjectId: 'user-1',
+          reason: '評価会議で調整',
+        }),
+      }),
+    )
   })
 })
 

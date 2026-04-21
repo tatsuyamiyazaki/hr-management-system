@@ -43,9 +43,34 @@ export interface TotalEvaluationResult {
   readonly calculatedAt: Date
 }
 
+export interface TotalEvaluationWeightOverride {
+  readonly id?: string
+  readonly cycleId: string
+  readonly subjectId: string
+  readonly performanceWeight: number
+  readonly goalWeight: number
+  readonly feedbackWeight: number
+  readonly reason: string
+  readonly adjustedBy: string
+  readonly adjustedAt: Date
+}
+
+export interface TotalEvaluationBoundaryThreshold {
+  readonly id: string
+  readonly label: string
+  readonly score: number
+}
+
+export interface TotalEvaluationPreviewResult extends TotalEvaluationResult {
+  readonly hasWeightOverride: boolean
+  readonly isNearGradeThreshold: boolean
+  readonly nearestGradeThresholdScore: number | null
+  readonly thresholdDistancePercent: number | null
+}
+
 export interface TotalEvaluationPreview {
   readonly cycleId: string
-  readonly results: TotalEvaluationResult[]
+  readonly results: TotalEvaluationPreviewResult[]
 }
 
 export interface TotalEvaluationScheduleResult {
@@ -61,6 +86,14 @@ export interface TotalEvaluationRepository {
   ): Promise<TotalEvaluationCalculationInput | null>
   upsertCalculatedResults(results: TotalEvaluationResult[]): Promise<void>
   listPreviewResults(cycleId: string): Promise<TotalEvaluationResult[]>
+  listWeightOverrides(cycleId: string): Promise<TotalEvaluationWeightOverride[]>
+  findWeightOverride(
+    cycleId: string,
+    subjectId: string,
+  ): Promise<TotalEvaluationWeightOverride | null>
+  upsertWeightOverride(
+    override: Omit<TotalEvaluationWeightOverride, 'id' | 'adjustedAt'>,
+  ): Promise<TotalEvaluationWeightOverride>
 }
 
 export interface GradeWeightProvider {
@@ -71,6 +104,10 @@ export interface IncentiveAdjustmentProvider {
   getAdjustmentForTotalEvaluation(cycleId: string): Promise<Map<string, number>>
 }
 
+export interface GradeThresholdProvider {
+  listThresholds(cycleId: string): Promise<readonly TotalEvaluationBoundaryThreshold[]>
+}
+
 export const totalEvaluationCalculationPayloadSchema = z.object({
   cycleId: z.string().min(1),
   subjectId: z.string().min(1),
@@ -79,6 +116,49 @@ export const totalEvaluationCalculationPayloadSchema = z.object({
 export type TotalEvaluationCalculationPayload = z.infer<
   typeof totalEvaluationCalculationPayloadSchema
 >
+
+export const totalEvaluationWeightOverrideSchema = z
+  .object({
+    cycleId: z.string().min(1),
+    subjectId: z.string().min(1),
+    performanceWeight: z.number().min(0).max(1),
+    goalWeight: z.number().min(0).max(1),
+    feedbackWeight: z.number().min(0).max(1),
+    reason: z.string().trim().min(1).max(1000),
+  })
+  .superRefine((value, ctx) => {
+    const sum = value.performanceWeight + value.goalWeight + value.feedbackWeight
+    if (Math.abs(sum - 1) > 1e-6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Weight sum must equal 1 (got ${sum})`,
+        path: ['performanceWeight'],
+      })
+    }
+  })
+
+export type TotalEvaluationWeightOverridePayload = z.infer<
+  typeof totalEvaluationWeightOverrideSchema
+>
+
+export interface TotalEvaluationOverrideWeightInput extends TotalEvaluationWeightOverridePayload {
+  readonly adjustedBy: string
+  readonly ipAddress: string
+  readonly userAgent: string
+}
+
+export interface TotalEvaluationAuditLogger {
+  emit(entry: {
+    userId: string | null
+    action: 'RECORD_UPDATE'
+    resourceType: 'EVALUATION'
+    resourceId: string | null
+    ipAddress: string
+    userAgent: string
+    before: Record<string, unknown> | null
+    after: Record<string, unknown> | null
+  }): Promise<void>
+}
 
 export interface TotalEvaluationJobQueue {
   enqueue(
@@ -92,6 +172,11 @@ export interface TotalEvaluationService {
   calculateSubject(cycleId: string, subjectId: string): Promise<TotalEvaluationResult>
   scheduleCalculateAll(cycleId: string): Promise<TotalEvaluationScheduleResult>
   previewBeforeFinalize(cycleId: string): Promise<TotalEvaluationPreview>
+  getWeightOverride(
+    cycleId: string,
+    subjectId: string,
+  ): Promise<TotalEvaluationWeightOverride | null>
+  overrideWeight(input: TotalEvaluationOverrideWeightInput): Promise<TotalEvaluationResult>
 }
 
 export class TotalEvaluationInputNotFoundError extends Error {
