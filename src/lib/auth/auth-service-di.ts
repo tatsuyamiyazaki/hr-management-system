@@ -1,29 +1,30 @@
-/**
- * AuthService のシングルトン DI モジュール。
- * - テスト: setAuthServiceForTesting / clearAuthServiceForTesting で差し替え
- * - プロダクション: アプリ起動時に initAuthService を呼んで初期化
- */
 import type { AuthService } from './auth-service'
+import { getDevAuthService } from './auth-dev-service'
 
-let _authService: AuthService | null = null
+let authService: AuthService | null = null
 
 export function setAuthServiceForTesting(svc: AuthService): void {
-  _authService = svc
+  authService = svc
 }
 
 export function clearAuthServiceForTesting(): void {
-  _authService = null
-}
-
-export function getAuthService(): AuthService {
-  if (_authService) return _authService
-  throw new Error(
-    'AuthService is not initialized. ' +
-      'テストでは setAuthServiceForTesting() を呼んでください。' +
-      'プロダクションではサーバー起動前に initAuthService() を呼んでください。',
-  )
+  authService = null
 }
 
 export function initAuthService(svc: AuthService): void {
-  _authService = svc
+  authService = svc
+}
+
+export function getAuthService(): AuthService {
+  if (authService) {
+    return authService
+  }
+  if (process.env.NODE_ENV === 'development') {
+    return getDevAuthService()
+  }
+  throw new Error(
+    'AuthService is not initialized. ' +
+      'テストでは setAuthServiceForTesting() を呼んでください。' +
+      'プロダクションでは initAuthService() を呼んでください。',
+  )
 }

@@ -4,17 +4,37 @@ const sections = [
   {
     href: '/dashboard',
     title: 'ダッシュボード',
-    description: 'ロール別 KPI をまとめて確認するホーム画面',
+    description: 'ロール別 KPI と主要指標を確認します。',
   },
   {
     href: '/organization',
     title: '組織管理',
-    description: '組織図とポジション編集 UI を開く',
+    description: '組織図とポジション管理の UI を確認します。',
   },
   {
     href: '/skill-map',
     title: 'スキルマップ',
-    description: 'スキルサマリー、ヒートマップ、レーダーチャートを表示',
+    description: 'スキルサマリー、ヒートマップ、レーダーチャートを確認します。',
+  },
+  {
+    href: '/auth/sessions',
+    title: 'セッション管理',
+    description: '現在のログイン端末一覧と手動失効を確認します。',
+  },
+  {
+    href: '/admin/users/invitations',
+    title: 'ユーザー招待',
+    description: '招待発行と初回パスワード設定フローを確認します。',
+  },
+  {
+    href: '/notifications',
+    title: '通知センター',
+    description: 'アプリ内通知一覧とメール通知設定を確認します。',
+  },
+  {
+    href: '/admin/ai-monitoring',
+    title: 'AI運用',
+    description: 'コスト推移、失敗率、プロバイダ比較を確認します。',
   },
 ] as const
 
@@ -27,14 +47,14 @@ export default function HomePage() {
             HR Management System
           </p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
-            人事プラットフォーム
+            画面一覧ポータル
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-            組織、スキル、評価、目標、インセンティブの主要機能へ移動できるエントリーポイントです。
+            組織、スキル、認証、通知、AI運用まで、現在利用できる主要画面へここから移動できます。
           </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {sections.map((section) => (
             <Link
               key={section.href}
