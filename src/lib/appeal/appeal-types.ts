@@ -28,6 +28,11 @@ export interface Appeal {
   readonly submittedAt: Date
 }
 
+export interface AppealReviewInput {
+  readonly status: Extract<AppealStatus, 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'>
+  readonly reviewComment: string
+}
+
 export interface AppealableTarget {
   readonly cycleId: string
   readonly subjectId: string
@@ -51,6 +56,17 @@ export interface AppealRepository {
     appellantId: string,
   ): Promise<AppealableTarget | null>
   listHrManagerIds(): Promise<string[]>
+  listAppeals(): Promise<Appeal[]>
+  findAppealById(appealId: string): Promise<Appeal | null>
+  updateAppealReview(
+    appealId: string,
+    input: {
+      status: AppealStatus
+      reviewerId: string
+      reviewComment: string
+      reviewedAt: Date
+    },
+  ): Promise<Appeal>
 }
 
 export interface AppealNotificationPort {
@@ -72,8 +88,15 @@ export const appealInputSchema = z.object({
 
 export type AppealInput = z.infer<typeof appealInputSchema>
 
+export const appealReviewInputSchema = z.object({
+  status: z.enum(['UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'WITHDRAWN']),
+  reviewComment: z.string().trim().min(1).max(2000),
+})
+
 export interface AppealService {
   submitAppeal(appellantId: string, input: AppealInput): Promise<Appeal>
+  listPending(hrManagerId: string): Promise<Appeal[]>
+  review(hrManagerId: string, appealId: string, input: AppealReviewInput): Promise<Appeal>
 }
 
 export class AppealTargetNotFoundError extends Error {
@@ -90,5 +113,19 @@ export class AppealDeadlineExceededError extends Error {
     super(`Appeal deadline exceeded: deadline="${deadline.toISOString()}"`)
     this.name = 'AppealDeadlineExceededError'
     this.deadline = deadline
+  }
+}
+
+export class AppealNotFoundError extends Error {
+  constructor(appealId: string) {
+    super(`Appeal not found: appealId="${appealId}"`)
+    this.name = 'AppealNotFoundError'
+  }
+}
+
+export class AppealInvalidStatusTransitionError extends Error {
+  constructor(current: AppealStatus, next: AppealStatus) {
+    super(`Invalid appeal status transition: current="${current}", next="${next}"`)
+    this.name = 'AppealInvalidStatusTransitionError'
   }
 }

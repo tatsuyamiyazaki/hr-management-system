@@ -8,6 +8,8 @@ import {
   appealInputSchema,
 } from '@/lib/appeal/appeal-types'
 
+const HR_OR_ADMIN_ROLES = ['HR_MANAGER', 'ADMIN'] as const
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await getAppSession()
   if (!session?.user?.email) {
@@ -53,4 +55,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     throw error
   }
+}
+
+export async function GET(): Promise<NextResponse> {
+  const session = await getAppSession()
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const sess = session as Record<string, unknown>
+  const role = typeof sess.role === 'string' ? sess.role : undefined
+  const userId = typeof sess.userId === 'string' ? sess.userId : undefined
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (!role || !HR_OR_ADMIN_ROLES.includes(role as (typeof HR_OR_ADMIN_ROLES)[number])) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  let service: ReturnType<typeof getAppealService>
+  try {
+    service = getAppealService()
+  } catch {
+    return NextResponse.json({ error: 'Appeal service not initialized' }, { status: 503 })
+  }
+
+  const result = await service.listPending(userId)
+  return NextResponse.json({ success: true, data: result }, { status: 200 })
 }
