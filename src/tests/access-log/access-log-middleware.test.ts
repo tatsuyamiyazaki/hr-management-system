@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAccessLogMiddleware } from '@/lib/access-log/access-log-middleware'
 import type { NextRequest } from 'next/server'
 import type { AccessLogRepository } from '@/lib/access-log/access-log-repository'
+import type { StructuredLogger } from '@/lib/monitoring/structured-logger'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks
@@ -9,12 +11,29 @@ import type { AccessLogRepository } from '@/lib/access-log/access-log-repository
 
 const mockEmit = vi.fn()
 const mockNext = vi.fn()
+const mockLoggerInfo = vi.fn()
+const mockLoggerError = vi.fn()
+const mockSecurityRecord = vi.fn()
 
 function makeRepository(): AccessLogRepository {
   return {
     insert: mockEmit,
     findMany: vi.fn(),
   } as unknown as AccessLogRepository
+}
+
+function makeLogger(): StructuredLogger {
+  return {
+    info: mockLoggerInfo,
+    warn: vi.fn(),
+    error: mockLoggerError,
+  }
+}
+
+function makeSecurityMonitor(): SecurityEventRecorderPort {
+  return {
+    record: mockSecurityRecord,
+  }
 }
 
 function makeRequest(
@@ -56,6 +75,9 @@ describe('createAccessLogMiddleware', () => {
     vi.clearAllMocks()
     mockEmit.mockResolvedValue(undefined)
     mockNext.mockResolvedValue(makeResponse(200))
+    mockLoggerInfo.mockResolvedValue(undefined)
+    mockLoggerError.mockResolvedValue(undefined)
+    mockSecurityRecord.mockResolvedValue([])
   })
 
   it('should call next() and return the response', async () => {
@@ -126,5 +148,46 @@ describe('createAccessLogMiddleware', () => {
     await middleware(req, mockNext)
 
     expect(mockEmit).not.toHaveBeenCalled()
+  })
+
+  it('records a RATE_LIMITED security event for 429 responses', async () => {
+    const middleware = createAccessLogMiddleware({
+      repository: makeRepository(),
+      securityMonitor: makeSecurityMonitor(),
+    })
+    const req = makeRequest({ path: '/api/search' })
+    mockNext.mockResolvedValue(makeResponse(429))
+
+    await middleware(req, mockNext)
+
+    expect(mockSecurityRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'RATE_LIMITED',
+        path: '/api/search',
+        requestId: 'req-test-123',
+        ipAddress: '127.0.0.1',
+      }),
+    )
+  })
+
+  it('sends repository failures to the structured logger', async () => {
+    mockEmit.mockRejectedValue(new Error('DB error'))
+    const middleware = createAccessLogMiddleware({
+      repository: makeRepository(),
+      logger: makeLogger(),
+    })
+    const req = makeRequest({ path: '/api/users' })
+
+    await middleware(req, mockNext)
+
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'access-log.persist_failed',
+      'failed to persist access log',
+      expect.objectContaining({
+        path: '/api/users',
+        requestId: 'req-test-123',
+      }),
+      expect.any(Error),
+    )
   })
 })

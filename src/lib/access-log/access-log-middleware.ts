@@ -1,4 +1,6 @@
 import type { NextRequest } from 'next/server'
+import type { StructuredLogger } from '@/lib/monitoring/structured-logger'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 import type { AccessLogRepository } from './access-log-repository'
 
 // Edge Runtime では Prisma 非対応のため no-op をデフォルトとする
@@ -12,6 +14,12 @@ type NextFn = (req: NextRequest) => Promise<Response>
 
 export interface AccessLogMiddleware {
   (req: NextRequest, next: NextFn): Promise<Response>
+}
+
+interface AccessLogMiddlewareOptions {
+  readonly repository?: AccessLogRepository
+  readonly logger?: StructuredLogger
+  readonly securityMonitor?: SecurityEventRecorderPort
 }
 
 function extractIp(req: NextRequest): string {
@@ -30,8 +38,16 @@ function extractRequestId(req: NextRequest): string {
  * アクセスログミドルウェア
  * /api/** パスのみ記録し、fire-and-forget で非同期に書き込む（Requirement 17.6）
  */
-export function createAccessLogMiddleware(repo?: AccessLogRepository): AccessLogMiddleware {
-  const repository = repo ?? noopRepository
+export function createAccessLogMiddleware(
+  repo?: AccessLogRepository | AccessLogMiddlewareOptions,
+): AccessLogMiddleware {
+  const options =
+    repo && typeof (repo as AccessLogRepository).insert === 'function'
+      ? { repository: repo as AccessLogRepository }
+      : ((repo ?? {}) as AccessLogMiddlewareOptions)
+  const repository = options.repository ?? noopRepository
+  const logger = options.logger
+  const securityMonitor = options.securityMonitor
 
   return async (req: NextRequest, next: NextFn): Promise<Response> => {
     const path = req.nextUrl.pathname
@@ -57,9 +73,32 @@ export function createAccessLogMiddleware(repo?: AccessLogRepository): AccessLog
         userId: null, // 認証ミドルウェアで設定するため初期値は null
         requestId: extractRequestId(req),
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         // ログ書き込み失敗は無視（本番では structured logger に転送する）
+        if (logger && error instanceof Error) {
+          void logger.error(
+            'access-log.persist_failed',
+            'failed to persist access log',
+            {
+              requestId: extractRequestId(req),
+              path,
+            },
+            error,
+          )
+        }
       })
+
+    if (securityMonitor && response.status === 429) {
+      void securityMonitor.record({
+        type: 'RATE_LIMITED',
+        occurredAt: new Date(),
+        ipAddress: extractIp(req),
+        userId: null,
+        requestId: extractRequestId(req),
+        path,
+        metadata: null,
+      })
+    }
 
     return response
   }

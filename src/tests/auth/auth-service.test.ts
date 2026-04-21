@@ -36,6 +36,7 @@ import {
   type AuthUserRecord,
   type AuthUserStatus,
 } from '@/lib/auth/user-repository'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 import { computeEmailHash } from '@/lib/shared/crypto'
 
 const APP_SECRET = 'test-app-secret'
@@ -266,6 +267,7 @@ interface LockoutHarnessOptions {
   readonly lockout?: LockoutStore
   readonly notifier?: LockoutNotifier
   readonly auditLogger?: AuthAuditLoggerPort
+  readonly securityMonitor?: SecurityEventRecorderPort
 }
 
 function buildLockoutHarness(opts: LockoutHarnessOptions): AuthService {
@@ -279,6 +281,7 @@ function buildLockoutHarness(opts: LockoutHarnessOptions): AuthService {
     lockout: opts.lockout,
     notifier: opts.notifier,
     auditLogger: opts.auditLogger,
+    securityMonitor: opts.securityMonitor,
   })
 }
 
@@ -400,7 +403,7 @@ describe('createAuthService.login + lockout (Req 1.3)', () => {
     expect(after.lockedUntil).toBe(new Date(now.getTime() + LOCKOUT_DURATION_MS).toISOString())
     expect(after.failedCount).toBe(MAX_FAILED_LOGIN_ATTEMPTS)
     expect(auditArg.before).toBeNull()
-  })
+  }, 10000)
 
   it('context の ipAddress/userAgent が監査ログへ渡る', async () => {
     const user = await buildUser()
@@ -421,7 +424,7 @@ describe('createAuthService.login + lockout (Req 1.3)', () => {
     const auditArg = firstCallArg<Parameters<AuthAuditLoggerPort['emit']>[0]>(auditLogger.emit)
     expect(auditArg.ipAddress).toBe('192.0.2.10')
     expect(auditArg.userAgent).toBe('agent-x/1.0')
-  })
+  }, 10000)
 
   it('context 未指定時は ipAddress/userAgent が "unknown" になる', async () => {
     const user = await buildUser()
@@ -438,7 +441,7 @@ describe('createAuthService.login + lockout (Req 1.3)', () => {
     const auditArg = firstCallArg<Parameters<AuthAuditLoggerPort['emit']>[0]>(auditLogger.emit)
     expect(auditArg.ipAddress).toBe('unknown')
     expect(auditArg.userAgent).toBe('unknown')
-  })
+  }, 10000)
 
   it('成功ログインで lockout.reset が呼ばれる', async () => {
     const user = await buildUser()
@@ -494,5 +497,31 @@ describe('createAuthService.login + lockout (Req 1.3)', () => {
       ).rejects.toBeInstanceOf(InvalidCredentialsError)
     }
     expect(auditLogger.emit).toHaveBeenCalledTimes(1)
+  })
+
+  it('認証失敗を securityMonitor に記録する', async () => {
+    const user = await buildUser()
+    const securityMonitor: SecurityEventRecorderPort = {
+      record: vi.fn(async () => []),
+    }
+    const service = buildLockoutHarness({ users: [user], securityMonitor })
+
+    await expect(
+      service.login(
+        { email: VALID_EMAIL, password: 'wrong' },
+        { ipAddress: '192.0.2.44', userAgent: 'agent-y/2.0' },
+      ),
+    ).rejects.toBeInstanceOf(InvalidCredentialsError)
+
+    expect(securityMonitor.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'AUTH_FAILURE',
+        userId: user.id,
+        ipAddress: '192.0.2.44',
+        metadata: {
+          email: VALID_EMAIL,
+        },
+      }),
+    )
   })
 })

@@ -11,6 +11,7 @@
 import type { AuditLoggerPort } from './authorizer'
 import { ForbiddenError, type AuthSubject } from './rbac-types'
 import type { UserRole } from '@/lib/notification/notification-types'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 型
@@ -29,6 +30,7 @@ export interface RequireRoleOptions {
   }
   /** 拒否時に監査ログを記録するためのポート */
   readonly auditLogger?: AuditLoggerPort
+  readonly securityMonitor?: SecurityEventRecorderPort
 }
 
 /**
@@ -90,6 +92,22 @@ export async function requireRole(
         reason: ROLE_ONLY_DENIED_REASON,
         requestedAction: ROLE_CHECK_REQUESTED_ACTION,
         subjectRole: subject.role,
+        allowedRoles: [...allowedRoles],
+      },
+    })
+  }
+
+  if (opts.securityMonitor !== undefined) {
+    await opts.securityMonitor.record({
+      type: 'ACCESS_DENIED',
+      occurredAt: new Date(),
+      ipAddress: opts.context?.ipAddress,
+      userId: subject.userId,
+      requestId: undefined,
+      path: undefined,
+      metadata: {
+        resourceType,
+        resourceId,
         allowedRoles: [...allowedRoles],
       },
     })
