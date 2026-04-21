@@ -26,6 +26,8 @@ export interface Appeal {
   readonly reviewComment: string | null
   readonly reviewedAt: Date | null
   readonly submittedAt: Date
+  readonly retainedUntil: Date
+  readonly recalculationRequestedAt: Date | null
 }
 
 export interface AppealReviewInput {
@@ -44,7 +46,13 @@ export interface AppealRepository {
   createAppeal(
     input: Omit<
       Appeal,
-      'id' | 'status' | 'reviewerId' | 'reviewComment' | 'reviewedAt' | 'submittedAt'
+      | 'id'
+      | 'status'
+      | 'reviewerId'
+      | 'reviewComment'
+      | 'reviewedAt'
+      | 'submittedAt'
+      | 'recalculationRequestedAt'
     >,
   ): Promise<Appeal>
   findPublishedFeedbackTarget(
@@ -65,6 +73,7 @@ export interface AppealRepository {
       reviewerId: string
       reviewComment: string
       reviewedAt: Date
+      recalculationRequestedAt?: Date | null
     },
   ): Promise<Appeal>
 }
@@ -76,6 +85,26 @@ export interface AppealNotificationPort {
     title: string
     body: string
     payload?: Record<string, unknown>
+  }): Promise<void>
+}
+
+export interface AppealRecalculationPort {
+  recalculate(input: {
+    appealId: string
+    cycleId: string
+    subjectId: string
+    triggeredBy: string
+  }): Promise<void>
+}
+
+export interface AppealAuditLogger {
+  emit(entry: {
+    userId: string | null
+    action: 'RECORD_UPDATE'
+    resourceType: 'EVALUATION'
+    resourceId: string | null
+    before: Record<string, unknown> | null
+    after: Record<string, unknown> | null
   }): Promise<void>
 }
 
