@@ -5,7 +5,12 @@ import {
   setAppealServiceForTesting,
 } from '@/lib/appeal/appeal-service-di'
 import type { AppealService } from '@/lib/appeal/appeal-types'
-import { AppealDeadlineExceededError, AppealTargetNotFoundError } from '@/lib/appeal/appeal-types'
+import {
+  AppealDeadlineExceededError,
+  AppealInvalidStatusTransitionError,
+  AppealNotFoundError,
+  AppealTargetNotFoundError,
+} from '@/lib/appeal/appeal-types'
 
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(),
@@ -14,7 +19,8 @@ vi.mock('next-auth', () => ({
 const { getServerSession } = await import('next-auth')
 const mockedGetServerSession = vi.mocked(getServerSession)
 
-const { POST } = await import('@/app/api/appeals/route')
+const { GET, POST } = await import('@/app/api/appeals/route')
+const { PATCH } = await import('@/app/api/appeals/[appealId]/route')
 
 function makeSession(role: string, userId = 'user-1') {
   return {
@@ -24,9 +30,17 @@ function makeSession(role: string, userId = 'user-1') {
   }
 }
 
-function makeRequest(body: unknown): NextRequest {
+function makePostRequest(body: unknown): NextRequest {
   return new NextRequest('http://localhost/api/appeals', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+function makePatchRequest(appealId: string, body: unknown): NextRequest {
+  return new NextRequest(`http://localhost/api/appeals/${appealId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -41,12 +55,44 @@ function makeService(overrides?: Partial<AppealService>): AppealService {
       subjectId: 'emp-1',
       targetType: 'FEEDBACK',
       targetId: 'feedback-1',
-      reason: '内容に事実誤認があります',
+      reason: '評価内容に差異があります',
       desiredOutcome: '再確認してほしい',
       status: 'SUBMITTED',
       reviewerId: null,
       reviewComment: null,
       reviewedAt: null,
+      submittedAt: new Date('2026-04-20T00:00:00.000Z'),
+    }),
+    listPending: vi.fn().mockResolvedValue([
+      {
+        id: 'appeal-1',
+        appellantId: 'emp-1',
+        cycleId: 'cycle-1',
+        subjectId: 'emp-1',
+        targetType: 'FEEDBACK',
+        targetId: 'feedback-1',
+        reason: '理由',
+        desiredOutcome: '再確認',
+        status: 'SUBMITTED',
+        reviewerId: null,
+        reviewComment: null,
+        reviewedAt: null,
+        submittedAt: new Date('2026-04-20T00:00:00.000Z'),
+      },
+    ]),
+    review: vi.fn().mockResolvedValue({
+      id: 'appeal-1',
+      appellantId: 'emp-1',
+      cycleId: 'cycle-1',
+      subjectId: 'emp-1',
+      targetType: 'FEEDBACK',
+      targetId: 'feedback-1',
+      reason: '理由',
+      desiredOutcome: '再確認',
+      status: 'UNDER_REVIEW',
+      reviewerId: 'hr-1',
+      reviewComment: '確認開始',
+      reviewedAt: new Date('2026-04-21T00:00:00.000Z'),
       submittedAt: new Date('2026-04-20T00:00:00.000Z'),
     }),
     ...overrides,
@@ -66,62 +112,110 @@ describe('POST /api/appeals', () => {
     mockedGetServerSession.mockResolvedValue(null)
 
     const res = await POST(
-      makeRequest({
+      makePostRequest({
         targetType: 'FEEDBACK',
         targetId: 'feedback-1',
-        reason: '内容に事実誤認があります',
+        reason: '評価内容に差異があります',
       }),
     )
 
     expect(res.status).toBe(401)
   })
 
-  it('EMPLOYEE 以外は403', async () => {
-    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER'))
-    setAppealServiceForTesting(makeService())
-
-    const res = await POST(
-      makeRequest({
-        targetType: 'FEEDBACK',
-        targetId: 'feedback-1',
-        reason: '内容に事実誤認があります',
-      }),
-    )
-
-    expect(res.status).toBe(403)
-  })
-
-  it('不正payloadは422', async () => {
+  it('不正 payload は422', async () => {
     mockedGetServerSession.mockResolvedValue(makeSession('EMPLOYEE', 'emp-1'))
     setAppealServiceForTesting(makeService())
 
-    const res = await POST(makeRequest({ targetType: 'FEEDBACK', targetId: '' }))
+    const res = await POST(makePostRequest({ targetType: 'FEEDBACK', targetId: '' }))
 
     expect(res.status).toBe(422)
   })
+})
 
-  it('対象が見つからない場合は404', async () => {
+describe('GET /api/appeals', () => {
+  it('HR_MANAGER が一覧を取得できる', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
+    const service = makeService()
+    setAppealServiceForTesting(service)
+
+    const res = await GET()
+
+    expect(res.status).toBe(200)
+    expect(service.listPending).toHaveBeenCalledWith('hr-1')
+  })
+
+  it('EMPLOYEE は403', async () => {
     mockedGetServerSession.mockResolvedValue(makeSession('EMPLOYEE', 'emp-1'))
+    setAppealServiceForTesting(makeService())
+
+    const res = await GET()
+
+    expect(res.status).toBe(403)
+  })
+})
+
+describe('PATCH /api/appeals/[appealId]', () => {
+  it('HR_MANAGER が審査更新できる', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
+    const service = makeService()
+    setAppealServiceForTesting(service)
+
+    const res = await PATCH(
+      makePatchRequest('appeal-1', {
+        status: 'UNDER_REVIEW',
+        reviewComment: '確認開始',
+      }),
+      { params: Promise.resolve({ appealId: 'appeal-1' }) },
+    )
+
+    expect(res.status).toBe(200)
+    expect(service.review).toHaveBeenCalledWith('hr-1', 'appeal-1', {
+      status: 'UNDER_REVIEW',
+      reviewComment: '確認開始',
+    })
+  })
+
+  it('存在しない appeal は404', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
     setAppealServiceForTesting(
       makeService({
-        submitAppeal: vi
-          .fn()
-          .mockRejectedValue(new AppealTargetNotFoundError('FEEDBACK', 'feedback-1')),
+        review: vi.fn().mockRejectedValue(new AppealNotFoundError('appeal-404')),
       }),
     )
 
-    const res = await POST(
-      makeRequest({
-        targetType: 'FEEDBACK',
-        targetId: 'feedback-1',
-        reason: '内容に事実誤認があります',
+    const res = await PATCH(
+      makePatchRequest('appeal-404', {
+        status: 'UNDER_REVIEW',
+        reviewComment: '確認開始',
       }),
+      { params: Promise.resolve({ appealId: 'appeal-404' }) },
     )
 
     expect(res.status).toBe(404)
   })
 
-  it('期限超過は422', async () => {
+  it('不正な遷移は409', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
+    setAppealServiceForTesting(
+      makeService({
+        review: vi
+          .fn()
+          .mockRejectedValue(new AppealInvalidStatusTransitionError('SUBMITTED', 'ACCEPTED')),
+      }),
+    )
+
+    const res = await PATCH(
+      makePatchRequest('appeal-1', {
+        status: 'ACCEPTED',
+        reviewComment: 'いきなり認容',
+      }),
+      { params: Promise.resolve({ appealId: 'appeal-1' }) },
+    )
+
+    expect(res.status).toBe(409)
+  })
+
+  it('期限超過エラーは submit 側で422', async () => {
     mockedGetServerSession.mockResolvedValue(makeSession('EMPLOYEE', 'emp-1'))
     setAppealServiceForTesting(
       makeService({
@@ -132,36 +226,34 @@ describe('POST /api/appeals', () => {
     )
 
     const res = await POST(
-      makeRequest({
+      makePostRequest({
         targetType: 'FEEDBACK',
         targetId: 'feedback-1',
-        reason: '期限切れ確認',
+        reason: '期限切れ',
       }),
     )
 
     expect(res.status).toBe(422)
   })
 
-  it('EMPLOYEE が異議申立てを送信できる', async () => {
+  it('対象なしは submit 側で404', async () => {
     mockedGetServerSession.mockResolvedValue(makeSession('EMPLOYEE', 'emp-1'))
-    const service = makeService()
-    setAppealServiceForTesting(service)
-
-    const res = await POST(
-      makeRequest({
-        targetType: 'TOTAL_EVALUATION',
-        targetId: 'result-1',
-        reason: '総合評価の根拠を確認したい',
-        desiredOutcome: '評価内容を見直してほしい',
+    setAppealServiceForTesting(
+      makeService({
+        submitAppeal: vi
+          .fn()
+          .mockRejectedValue(new AppealTargetNotFoundError('FEEDBACK', 'feedback-1')),
       }),
     )
 
-    expect(res.status).toBe(201)
-    expect(service.submitAppeal).toHaveBeenCalledWith('emp-1', {
-      targetType: 'TOTAL_EVALUATION',
-      targetId: 'result-1',
-      reason: '総合評価の根拠を確認したい',
-      desiredOutcome: '評価内容を見直してほしい',
-    })
+    const res = await POST(
+      makePostRequest({
+        targetType: 'FEEDBACK',
+        targetId: 'feedback-1',
+        reason: '対象なし',
+      }),
+    )
+
+    expect(res.status).toBe(404)
   })
 })
