@@ -32,6 +32,7 @@ function makeService(overrides?: Partial<DashboardService>): DashboardService {
         'まだ表示できるデータがありません。評価、目標、スキル登録が進むとここにKPIが表示されます。',
     }),
     getTrendSummary: vi.fn(),
+    exportReport: vi.fn(),
     ...overrides,
   }
 }

@@ -55,6 +55,14 @@ function generateContent(payload: ExportRequest): string {
         ? `%PDF-1.4 stub for cycleId=${payload.cycleId}`
         : `cycle_id,employee_id,score\n${payload.cycleId},,,`
 
+    case 'DashboardReport':
+      return payload.format === 'pdf'
+        ? `%PDF-1.4 stub for dashboard report cycleId=${payload.cycleId ?? 'all'}`
+        : [
+            'cycle_id,department_ids,from,to',
+            `"${payload.cycleId ?? ''}","${payload.departmentIds.join('|')}","${payload.from ?? ''}","${payload.to ?? ''}"`,
+          ].join('\n')
+
     case 'AuditLog':
       return 'occurred_at,action,resource_type,resource_id,actor_id\n'
   }
@@ -89,7 +97,10 @@ function generateMasterCsv(resource: string): string {
 }
 
 function getExtension(payload: ExportRequest): string {
-  if (payload.type === 'EvaluationReport' && payload.format === 'pdf') {
+  if (
+    (payload.type === 'EvaluationReport' || payload.type === 'DashboardReport') &&
+    payload.format === 'pdf'
+  ) {
     return 'pdf'
   }
   return 'csv'

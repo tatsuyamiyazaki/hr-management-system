@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { UserRole } from '@/lib/notification/notification-types'
+import type { ExportJobId } from '@/lib/export/export-types'
 
 export interface KpiMetric {
   readonly key:
@@ -60,6 +61,20 @@ export interface DashboardTrendSummary {
   readonly emptyStateMessage: string | null
 }
 
+export interface DashboardExportInput {
+  readonly format: 'pdf' | 'csv'
+  readonly cycleId: string | null
+  readonly departmentIds: readonly string[]
+  readonly from: Date | null
+  readonly to: Date | null
+}
+
+export interface DashboardAuditContext {
+  readonly userId: string
+  readonly ipAddress: string
+  readonly userAgent: string
+}
+
 export interface DashboardRepository {
   countEmployees(): Promise<number>
   countManagedMembers(managerId: string): Promise<number>
@@ -84,6 +99,12 @@ export interface DashboardService {
     userId: string,
     filter: Partial<DashboardTrendFilter>,
   ): Promise<DashboardTrendSummary>
+  exportReport(
+    role: UserRole,
+    userId: string,
+    input: DashboardExportInput,
+    context: DashboardAuditContext,
+  ): Promise<{ jobId: ExportJobId }>
 }
 
 export const dashboardQuerySchema = z.object({})
@@ -92,6 +113,23 @@ export const dashboardTrendQuerySchema = z
   .object({
     departmentIds: z.array(z.string().min(1)).default([]),
     cycleIds: z.array(z.string().min(1)).default([]),
+    from: z.date().nullable().default(null),
+    to: z.date().nullable().default(null),
+  })
+  .refine(
+    (value) =>
+      value.from === null || value.to === null || value.from.getTime() <= value.to.getTime(),
+    {
+      message: 'from must be earlier than or equal to to',
+      path: ['from'],
+    },
+  )
+
+export const dashboardExportBodySchema = z
+  .object({
+    format: z.enum(['pdf', 'csv']),
+    cycleId: z.string().min(1).nullable().default(null),
+    departmentIds: z.array(z.string().min(1)).default([]),
     from: z.date().nullable().default(null),
     to: z.date().nullable().default(null),
   })

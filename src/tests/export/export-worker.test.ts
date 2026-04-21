@@ -106,6 +106,21 @@ describe('processExportJob()', () => {
     expect(uploadPath).toMatch(/\.csv$/)
   })
 
+  it('should process DashboardReport (pdf) and upload a file', async () => {
+    const job = makeJob({
+      type: 'DashboardReport',
+      format: 'pdf',
+      cycleId: 'cycle-1',
+      departmentIds: ['dept-1'],
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-03-31T23:59:59.999Z',
+    })
+    const result = await processExportJob(job, storageMock)
+    expect(result.blobKey).toBeTruthy()
+    const [uploadPath] = storageMock.upload.mock.calls[0]!
+    expect(uploadPath).toMatch(/\.pdf$/)
+  })
+
   it('should use "unknown" as fallback when job.id is undefined', async () => {
     const job = { id: undefined, data: { type: 'OrganizationCsv' } } as unknown as Parameters<
       typeof processExportJob
