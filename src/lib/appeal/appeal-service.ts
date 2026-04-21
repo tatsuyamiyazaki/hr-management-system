@@ -1,7 +1,9 @@
 import type {
+  AppealAuditLogger,
   Appeal,
   AppealInput,
   AppealNotificationPort,
+  AppealRecalculationPort,
   AppealRepository,
   AppealReviewInput,
   AppealService,
@@ -35,11 +37,19 @@ const ALLOWED_REVIEW_TRANSITIONS: Record<AppealStatus, readonly AppealReviewInpu
 export interface AppealServiceDeps {
   readonly repository: AppealRepository
   readonly notificationEmitter?: AppealNotificationPort
+  readonly recalculationPort?: AppealRecalculationPort
+  readonly auditLogger?: AppealAuditLogger
   readonly clock?: () => Date
 }
 
 function computeDeadline(publishedAt: Date): Date {
   return new Date(publishedAt.getTime() + APPEAL_WINDOW_DAYS * MS_PER_DAY)
+}
+
+function computeRetentionUntil(submittedAt: Date): Date {
+  const retention = new Date(submittedAt)
+  retention.setFullYear(retention.getFullYear() + 7)
+  return retention
 }
 
 function assertWithinDeadline(target: AppealableTarget, now: Date): void {
@@ -65,11 +75,15 @@ function sortAppealsForReview(left: Appeal, right: Appeal): number {
 class AppealServiceImpl implements AppealService {
   private readonly repository: AppealRepository
   private readonly notificationEmitter?: AppealNotificationPort
+  private readonly recalculationPort?: AppealRecalculationPort
+  private readonly auditLogger?: AppealAuditLogger
   private readonly clock: () => Date
 
   constructor(deps: AppealServiceDeps) {
     this.repository = deps.repository
     this.notificationEmitter = deps.notificationEmitter
+    this.recalculationPort = deps.recalculationPort
+    this.auditLogger = deps.auditLogger
     this.clock = deps.clock ?? (() => new Date())
   }
 
@@ -83,6 +97,7 @@ class AppealServiceImpl implements AppealService {
       throw new AppealTargetNotFoundError(input.targetType, input.targetId)
     }
 
+    const now = this.clock()
     assertWithinDeadline(target, this.clock())
 
     const appeal = await this.repository.createAppeal({
@@ -93,6 +108,7 @@ class AppealServiceImpl implements AppealService {
       targetId: input.targetId,
       reason: input.reason,
       desiredOutcome: input.desiredOutcome?.trim() || null,
+      retainedUntil: computeRetentionUntil(now),
     })
 
     const hrManagerIds = await this.repository.listHrManagerIds()
@@ -132,12 +148,46 @@ class AppealServiceImpl implements AppealService {
 
     assertReviewTransition(appeal.status, input.status)
 
+    const reviewTime = this.clock()
+    const recalculationRequestedAt =
+      input.status === 'ACCEPTED' ? reviewTime : appeal.recalculationRequestedAt
+
     const reviewedAppeal = await this.repository.updateAppealReview(appealId, {
       status: input.status,
       reviewerId: hrManagerId,
       reviewComment: input.reviewComment.trim(),
-      reviewedAt: this.clock(),
+      reviewedAt: reviewTime,
+      recalculationRequestedAt,
     })
+
+    if (input.status === 'ACCEPTED' && this.recalculationPort) {
+      await this.recalculationPort.recalculate({
+        appealId: reviewedAppeal.id,
+        cycleId: reviewedAppeal.cycleId,
+        subjectId: reviewedAppeal.subjectId,
+        triggeredBy: hrManagerId,
+      })
+    }
+
+    if (input.status === 'ACCEPTED' && this.auditLogger) {
+      await this.auditLogger.emit({
+        userId: hrManagerId,
+        action: 'RECORD_UPDATE',
+        resourceType: 'EVALUATION',
+        resourceId: reviewedAppeal.subjectId,
+        before: {
+          appealId: appeal.id,
+          status: appeal.status,
+          recalculationRequestedAt: appeal.recalculationRequestedAt?.toISOString() ?? null,
+        },
+        after: {
+          appealId: reviewedAppeal.id,
+          status: reviewedAppeal.status,
+          recalculationRequestedAt: reviewedAppeal.recalculationRequestedAt?.toISOString() ?? null,
+          retainedUntil: reviewedAppeal.retainedUntil.toISOString(),
+        },
+      })
+    }
 
     if (this.notificationEmitter) {
       await this.notificationEmitter.emit({

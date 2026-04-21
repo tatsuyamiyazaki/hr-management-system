@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAppealService } from '@/lib/appeal/appeal-service'
 import type {
+  AppealAuditLogger,
   Appeal,
   AppealNotificationPort,
+  AppealRecalculationPort,
   AppealRepository,
   AppealableTarget,
 } from '@/lib/appeal/appeal-types'
@@ -38,6 +40,8 @@ function makeAppeal(overrides: Partial<Appeal> = {}): Appeal {
     reviewComment: null,
     reviewedAt: null,
     submittedAt: new Date('2026-04-12T00:00:00.000Z'),
+    retainedUntil: new Date('2033-04-12T00:00:00.000Z'),
+    recalculationRequestedAt: null,
     ...overrides,
   }
 }
@@ -104,6 +108,7 @@ describe('AppealService.submitAppeal', () => {
       targetId: 'feedback-1',
       reason: '評価内容に差異があります',
       desiredOutcome: '再確認してほしい',
+      retainedUntil: new Date('2033-04-20T00:00:00.000Z'),
     })
     expect(notificationEmitter.emit).toHaveBeenCalledTimes(2)
     expect(result).toEqual(
@@ -214,6 +219,7 @@ describe('AppealService.review', () => {
       reviewerId: 'hr-1',
       reviewComment: '確認を開始しました',
       reviewedAt: new Date('2026-04-21T00:00:00.000Z'),
+      recalculationRequestedAt: null,
     })
     expect(notificationEmitter.emit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -222,6 +228,63 @@ describe('AppealService.review', () => {
       }),
     )
     expect(result.status).toBe('UNDER_REVIEW')
+  })
+
+  it('ACCEPTED のとき再計算と監査ログを起動する', async () => {
+    const repository = makeRepository()
+    repository.findAppealById = vi.fn().mockResolvedValue(
+      makeAppeal({
+        id: 'appeal-accepted',
+        status: 'UNDER_REVIEW',
+        targetType: 'TOTAL_EVALUATION',
+        targetId: 'result-1',
+      }),
+    )
+    repository.updateAppealReview = vi.fn().mockImplementation(async (appealId, input) =>
+      makeAppeal({
+        id: appealId,
+        status: input.status,
+        reviewerId: input.reviewerId,
+        reviewComment: input.reviewComment,
+        reviewedAt: input.reviewedAt,
+        recalculationRequestedAt: input.recalculationRequestedAt ?? null,
+        targetType: 'TOTAL_EVALUATION',
+        targetId: 'result-1',
+      }),
+    )
+    const recalculationPort: AppealRecalculationPort = {
+      recalculate: vi.fn().mockResolvedValue(undefined),
+    }
+    const auditLogger: AppealAuditLogger = {
+      emit: vi.fn().mockResolvedValue(undefined),
+    }
+    const service = createAppealService({
+      repository,
+      recalculationPort,
+      auditLogger,
+      clock: () => new Date('2026-04-21T00:00:00.000Z'),
+    })
+
+    const result = await service.review('hr-1', 'appeal-accepted', {
+      status: 'ACCEPTED',
+      reviewComment: '認容して再計算します',
+    })
+
+    expect(recalculationPort.recalculate).toHaveBeenCalledWith({
+      appealId: 'appeal-accepted',
+      cycleId: 'cycle-1',
+      subjectId: 'emp-1',
+      triggeredBy: 'hr-1',
+    })
+    expect(auditLogger.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'hr-1',
+        action: 'RECORD_UPDATE',
+        resourceType: 'EVALUATION',
+        resourceId: 'emp-1',
+      }),
+    )
+    expect(result.recalculationRequestedAt).toEqual(new Date('2026-04-21T00:00:00.000Z'))
   })
 
   it('存在しない異議申立ては not found', async () => {
