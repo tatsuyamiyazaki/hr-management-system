@@ -93,6 +93,7 @@ describe('DeadlineAlertService.scanDeadlineAlerts', () => {
       expect(result.skipped).toBe(0)
       const notifications = await notifRepo.listByUser('user-1')
       expect(notifications[0]!.title).toContain('3日')
+      expect(notifications[0]!.body).toContain('2026')
     })
 
     it('残り1日・進捗49%の目標は通知される', async () => {

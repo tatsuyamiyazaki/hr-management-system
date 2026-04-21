@@ -8,6 +8,7 @@
  * Component は presentational に保ち、fetch / mutate は親コンポーネント側で行う。
  */
 import type { ReactElement } from 'react'
+import { formatDateJapanese } from '@/lib/shared/locale'
 import { isSkillApproved, type EmployeeSkill } from '@/lib/skill/skill-types'
 import { SkillBadge } from './SkillBadge'
 
@@ -19,14 +20,8 @@ interface SkillListProps {
   readonly onApprove?: (skill: EmployeeSkill) => void
 }
 
-const JA_LOCALE = 'ja-JP'
-
 function formatAcquiredDate(date: Date): string {
-  return date.toLocaleDateString(JA_LOCALE, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  return formatDateJapanese(date)
 }
 
 export function SkillList({ skills, skillNames, onApprove }: SkillListProps): ReactElement {

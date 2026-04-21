@@ -7,6 +7,7 @@
  */
 
 import type { NotificationRepository } from '@/lib/notification/notification-repository'
+import { formatDateJapanese } from '@/lib/shared/locale'
 import {
   ALERT_TRIGGER_DAYS,
   DEADLINE_ALERT_PROGRESS_THRESHOLD,
@@ -85,7 +86,7 @@ function buildNotificationTitle(daysUntilDeadline: number): string {
 }
 
 function buildNotificationBody(target: DeadlineAlertTarget): string {
-  return `「${target.title}」の進捗が${target.currentProgressRate}%です。期限（${target.endDate.toLocaleDateString('ja-JP')}）までに完了しましょう。`
+  return `「${target.title}」の進捗が${target.currentProgressRate}%です。期限（${formatDateJapanese(target.endDate)}）までに完了しましょう。`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
