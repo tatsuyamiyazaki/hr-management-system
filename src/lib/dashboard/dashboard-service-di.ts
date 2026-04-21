@@ -18,8 +18,8 @@ export function getDashboardService(): DashboardService {
   if (!service) {
     throw new Error(
       'DashboardService is not initialized. ' +
-        'テストでは setDashboardServiceForTesting() を呼んでください。' +
-        'プロダクションでは initDashboardService() を呼んでください。',
+        'テストでは setDashboardServiceForTesting() を呼び出してください。' +
+        'プロダクションでは initDashboardService() を呼び出してください。',
     )
   }
   return service

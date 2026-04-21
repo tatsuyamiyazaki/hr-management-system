@@ -32,6 +32,54 @@ function makeRepository(overrides: Partial<DashboardRepository> = {}): Dashboard
       latestFinalScore: 82.5,
       latestIncentiveScore: 12,
     }),
+    listCompanyTrend: async () => [
+      {
+        cycleId: 'cycle-1',
+        cycleName: '2025 Q3',
+        periodStart: new Date('2025-07-01T00:00:00.000Z'),
+        periodEnd: new Date('2025-09-30T23:59:59.999Z'),
+        score: 71.2,
+      },
+      {
+        cycleId: 'cycle-2',
+        cycleName: '2025 Q4',
+        periodStart: new Date('2025-10-01T00:00:00.000Z'),
+        periodEnd: new Date('2025-12-31T23:59:59.999Z'),
+        score: 74.8,
+      },
+      {
+        cycleId: 'cycle-3',
+        cycleName: '2026 Q1',
+        periodStart: new Date('2026-01-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-31T23:59:59.999Z'),
+        score: 79.5,
+      },
+      {
+        cycleId: 'cycle-4',
+        cycleName: '2026 Q2',
+        periodStart: new Date('2026-04-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-06-30T23:59:59.999Z'),
+        score: 81.4,
+      },
+    ],
+    listManagerTrend: async () => [
+      {
+        cycleId: 'cycle-2',
+        cycleName: '2025 Q4',
+        periodStart: new Date('2025-10-01T00:00:00.000Z'),
+        periodEnd: new Date('2025-12-31T23:59:59.999Z'),
+        score: 76.1,
+      },
+    ],
+    listEmployeeTrend: async () => [
+      {
+        cycleId: 'cycle-2',
+        cycleName: '2025 Q4',
+        periodStart: new Date('2025-10-01T00:00:00.000Z'),
+        periodEnd: new Date('2025-12-31T23:59:59.999Z'),
+        score: 80.4,
+      },
+    ],
     ...overrides,
   }
 }
@@ -97,5 +145,49 @@ describe('DashboardService.getKpiSummary', () => {
     const result = await service.getKpiSummary('HR_MANAGER', 'hr-1')
 
     expect(result.emptyStateMessage).toContain('まだ表示できるデータがありません')
+  })
+
+  it('HR_MANAGER のトレンドは新しい 3 サイクルに絞って返す', async () => {
+    const service = createDashboardService(makeRepository())
+
+    const result = await service.getTrendSummary('HR_MANAGER', 'hr-1', {})
+
+    expect(result.points.map((point) => point.cycleId)).toEqual(['cycle-2', 'cycle-3', 'cycle-4'])
+    expect(result.filters.departmentIds).toEqual([])
+    expect(result.emptyStateMessage).toBeNull()
+  })
+
+  it('トレンド取得時はフィルタを repository に渡す', async () => {
+    let received:
+      | {
+          readonly departmentIds: readonly string[]
+          readonly cycleIds: readonly string[]
+          readonly from: Date | null
+          readonly to: Date | null
+        }
+      | undefined
+    const service = createDashboardService(
+      makeRepository({
+        listCompanyTrend: async (filter) => {
+          received = filter
+          return []
+        },
+      }),
+    )
+
+    const result = await service.getTrendSummary('ADMIN', 'admin-1', {
+      departmentIds: ['dept-1'],
+      cycleIds: ['cycle-9'],
+      from: new Date('2026-01-01T00:00:00.000Z'),
+      to: new Date('2026-03-31T23:59:59.999Z'),
+    })
+
+    expect(received).toEqual({
+      departmentIds: ['dept-1'],
+      cycleIds: ['cycle-9'],
+      from: new Date('2026-01-01T00:00:00.000Z'),
+      to: new Date('2026-03-31T23:59:59.999Z'),
+    })
+    expect(result.emptyStateMessage).toContain('トレンドを表示できるデータがありません')
   })
 })
