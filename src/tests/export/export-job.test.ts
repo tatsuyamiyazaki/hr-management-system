@@ -87,6 +87,27 @@ describe('ExportJob', () => {
         expect.objectContaining({ type: 'EvaluationReport', cycleId: 'cycle-1', format: 'pdf' }),
       )
     })
+
+    it('should pass DashboardReport request correctly', async () => {
+      const exportJob = createExportJob(queueMock, storageMock)
+      await exportJob.enqueue({
+        type: 'DashboardReport',
+        format: 'csv',
+        cycleId: 'cycle-1',
+        departmentIds: ['dept-1'],
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-03-31T23:59:59.999Z',
+      })
+      expect(queueMock.enqueue).toHaveBeenCalledWith(
+        'export-csv',
+        expect.objectContaining({
+          type: 'DashboardReport',
+          format: 'csv',
+          cycleId: 'cycle-1',
+          departmentIds: ['dept-1'],
+        }),
+      )
+    })
   })
 
   describe('getStatus()', () => {

@@ -37,6 +37,15 @@ const evaluationReportSchema = z.object({
   format: z.enum(['pdf', 'csv']),
 })
 
+const dashboardReportSchema = z.object({
+  type: z.literal('DashboardReport'),
+  format: z.enum(['pdf', 'csv']),
+  cycleId: z.string().min(1).nullable(),
+  departmentIds: z.array(z.string().min(1)),
+  from: z.string().datetime().nullable(),
+  to: z.string().datetime().nullable(),
+})
+
 const auditLogSchema = z.object({
   type: z.literal('AuditLog'),
   filter: z.record(z.unknown()),
@@ -46,6 +55,7 @@ export const exportRequestSchema = z.discriminatedUnion('type', [
   masterCsvSchema,
   organizationCsvSchema,
   evaluationReportSchema,
+  dashboardReportSchema,
   auditLogSchema,
 ])
 

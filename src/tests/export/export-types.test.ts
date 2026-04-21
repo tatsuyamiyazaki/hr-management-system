@@ -30,13 +30,26 @@ describe('isExportRequest()', () => {
   })
 
   it('should return true for EvaluationReport request', () => {
-    expect(
-      isExportRequest({ type: 'EvaluationReport', cycleId: 'cycle-1', format: 'pdf' }),
-    ).toBe(true)
+    expect(isExportRequest({ type: 'EvaluationReport', cycleId: 'cycle-1', format: 'pdf' })).toBe(
+      true,
+    )
   })
 
   it('should return true for AuditLog request', () => {
     expect(isExportRequest({ type: 'AuditLog', filter: {} })).toBe(true)
+  })
+
+  it('should return true for DashboardReport request', () => {
+    expect(
+      isExportRequest({
+        type: 'DashboardReport',
+        format: 'pdf',
+        cycleId: 'cycle-1',
+        departmentIds: ['dept-1'],
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-03-31T23:59:59.999Z',
+      }),
+    ).toBe(true)
   })
 
   it('should return false for unknown type', () => {
@@ -77,6 +90,18 @@ describe('exportRequestSchema', () => {
 
   it('should validate AuditLog variant', () => {
     const result = exportRequestSchema.safeParse({ type: 'AuditLog', filter: { userId: 'u-1' } })
+    expect(result.success).toBe(true)
+  })
+
+  it('should validate DashboardReport variant', () => {
+    const result = exportRequestSchema.safeParse({
+      type: 'DashboardReport',
+      format: 'pdf',
+      cycleId: 'cycle-1',
+      departmentIds: ['dept-1'],
+      from: '2026-01-01T00:00:00.000Z',
+      to: '2026-03-31T23:59:59.999Z',
+    })
     expect(result.success).toBe(true)
   })
 

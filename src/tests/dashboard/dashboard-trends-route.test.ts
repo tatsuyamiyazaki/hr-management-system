@@ -37,6 +37,7 @@ function makeService(overrides?: Partial<DashboardService>): DashboardService {
       points: [],
       emptyStateMessage: null,
     }),
+    exportReport: vi.fn(),
     ...overrides,
   }
 }
@@ -53,7 +54,7 @@ describe('GET /api/dashboard/trends', () => {
   it('未認証は 401', async () => {
     mockedGetServerSession.mockResolvedValue(null)
 
-    const res = await GET(new Request('http://localhost/api/dashboard/trends'))
+    const res = await GET(new Request('http://localhost/api/dashboard/trends') as never)
 
     expect(res.status).toBe(401)
   })
@@ -66,7 +67,7 @@ describe('GET /api/dashboard/trends', () => {
     const res = await GET(
       new Request(
         'http://localhost/api/dashboard/trends?departmentIds=dept-1,dept-2&cycleIds=cycle-1&from=2026-01-01T00:00:00.000Z&to=2026-03-31T23:59:59.999Z',
-      ),
+      ) as never,
     )
 
     expect(res.status).toBe(200)
@@ -85,7 +86,7 @@ describe('GET /api/dashboard/trends', () => {
     const res = await GET(
       new Request(
         'http://localhost/api/dashboard/trends?from=2026-04-01T00:00:00.000Z&to=2026-03-31T23:59:59.999Z',
-      ),
+      ) as never,
     )
 
     expect(res.status).toBe(400)

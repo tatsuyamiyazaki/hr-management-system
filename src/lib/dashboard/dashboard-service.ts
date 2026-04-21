@@ -1,6 +1,10 @@
+import type { AuditLogEmitter } from '@/lib/audit/audit-log-emitter'
+import type { ExportJob } from '@/lib/export/export-job'
 import type { UserRole } from '@/lib/notification/notification-types'
 import type {
   DashboardAggregateRow,
+  DashboardAuditContext,
+  DashboardExportInput,
   DashboardRepository,
   DashboardService,
   DashboardSummary,
@@ -26,6 +30,16 @@ function normalizeTrendFilter(filter: Partial<DashboardTrendFilter>): DashboardT
     cycleIds: unique(filter.cycleIds ?? []),
     from: filter.from ?? null,
     to: filter.to ?? null,
+  }
+}
+
+function normalizeExportInput(input: DashboardExportInput): DashboardExportInput {
+  return {
+    format: input.format,
+    cycleId: input.cycleId,
+    departmentIds: unique(input.departmentIds),
+    from: input.from,
+    to: input.to,
   }
 }
 
@@ -109,8 +123,18 @@ function buildTrendEmptyStateMessage(points: readonly DashboardTrendPoint[]): st
     : 'トレンドを表示できるデータがありません。フィルタ条件を見直すか、評価サイクルの確定をお待ちください。'
 }
 
+export interface DashboardServiceDeps {
+  readonly repository: DashboardRepository
+  readonly exportJob?: ExportJob
+  readonly auditLogEmitter?: AuditLogEmitter
+}
+
 class DashboardServiceImpl implements DashboardService {
-  constructor(private readonly repository: DashboardRepository) {}
+  constructor(
+    private readonly repository: DashboardRepository,
+    private readonly exportJob?: ExportJob,
+    private readonly auditLogEmitter?: AuditLogEmitter,
+  ) {}
 
   async getKpiSummary(role: UserRole, userId: string): Promise<DashboardSummary> {
     if (role === 'ADMIN' || role === 'HR_MANAGER') {
@@ -184,8 +208,61 @@ class DashboardServiceImpl implements DashboardService {
       emptyStateMessage: buildTrendEmptyStateMessage(normalizedPoints),
     }
   }
+
+  async exportReport(
+    role: UserRole,
+    userId: string,
+    input: DashboardExportInput,
+    context: DashboardAuditContext,
+  ): Promise<{ jobId: string }> {
+    if ((role !== 'ADMIN' && role !== 'HR_MANAGER') || context.userId !== userId) {
+      throw new Error('Dashboard export forbidden')
+    }
+    if (!this.exportJob) {
+      throw new Error('Dashboard export job is not configured')
+    }
+
+    const normalizedInput = normalizeExportInput(input)
+    const result = await this.exportJob.enqueue({
+      type: 'DashboardReport',
+      format: normalizedInput.format,
+      cycleId: normalizedInput.cycleId,
+      departmentIds: [...normalizedInput.departmentIds],
+      from: normalizedInput.from?.toISOString() ?? null,
+      to: normalizedInput.to?.toISOString() ?? null,
+    })
+
+    await this.auditLogEmitter?.emit({
+      userId,
+      action: 'DATA_EXPORT',
+      resourceType: 'EXPORT_JOB',
+      resourceId: result.jobId,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      before: null,
+      after: {
+        reportType: 'DASHBOARD',
+        format: normalizedInput.format,
+        cycleId: normalizedInput.cycleId,
+        departmentIds: [...normalizedInput.departmentIds],
+        from: normalizedInput.from?.toISOString() ?? null,
+        to: normalizedInput.to?.toISOString() ?? null,
+      },
+    })
+
+    return result
+  }
 }
 
-export function createDashboardService(repository: DashboardRepository): DashboardService {
-  return new DashboardServiceImpl(repository)
+export function createDashboardService(
+  repositoryOrDeps: DashboardRepository | DashboardServiceDeps,
+): DashboardService {
+  if ('repository' in repositoryOrDeps) {
+    return new DashboardServiceImpl(
+      repositoryOrDeps.repository,
+      repositoryOrDeps.exportJob,
+      repositoryOrDeps.auditLogEmitter,
+    )
+  }
+  return new DashboardServiceImpl(repositoryOrDeps)
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { AuditLogEmitter } from '@/lib/audit/audit-log-emitter'
 import { createDashboardService } from '@/lib/dashboard/dashboard-service'
 import type { DashboardRepository } from '@/lib/dashboard/dashboard-types'
+import type { ExportJob } from '@/lib/export/export-job'
 
 function makeRepository(overrides: Partial<DashboardRepository> = {}): DashboardRepository {
   return {
@@ -84,7 +86,7 @@ function makeRepository(overrides: Partial<DashboardRepository> = {}): Dashboard
   }
 }
 
-describe('DashboardService.getKpiSummary', () => {
+describe('DashboardService', () => {
   it('ADMIN は全社 KPI を返す', async () => {
     const service = createDashboardService(makeRepository())
 
@@ -189,5 +191,52 @@ describe('DashboardService.getKpiSummary', () => {
       to: new Date('2026-03-31T23:59:59.999Z'),
     })
     expect(result.emptyStateMessage).toContain('トレンドを表示できるデータがありません')
+  })
+
+  it('HR_MANAGER は dashboard report export job を投入し監査ログを残す', async () => {
+    const exportJob: ExportJob = {
+      enqueue: async () => ({ jobId: 'job-dashboard-1' }),
+      getStatus: async () => null,
+      getDownloadUrl: async () => null,
+    }
+    const entries: Parameters<AuditLogEmitter['emit']>[0][] = []
+    const auditLogEmitter: AuditLogEmitter = {
+      emit: async (entry) => {
+        entries.push(entry)
+      },
+    }
+    const service = createDashboardService({
+      repository: makeRepository(),
+      exportJob,
+      auditLogEmitter,
+    })
+
+    const result = await service.exportReport(
+      'HR_MANAGER',
+      'hr-1',
+      {
+        format: 'pdf',
+        cycleId: 'cycle-3',
+        departmentIds: ['dept-1', 'dept-2'],
+        from: new Date('2026-01-01T00:00:00.000Z'),
+        to: new Date('2026-03-31T23:59:59.999Z'),
+      },
+      {
+        userId: 'hr-1',
+        ipAddress: '127.0.0.1',
+        userAgent: 'vitest',
+      },
+    )
+
+    expect(result).toEqual({ jobId: 'job-dashboard-1' })
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toEqual(
+      expect.objectContaining({
+        userId: 'hr-1',
+        action: 'DATA_EXPORT',
+        resourceType: 'EXPORT_JOB',
+        resourceId: 'job-dashboard-1',
+      }),
+    )
   })
 })
