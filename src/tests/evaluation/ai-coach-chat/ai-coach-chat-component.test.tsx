@@ -29,6 +29,12 @@ describe('AICoachChat rendering', () => {
     expect(html).toContain('評価コメントを入力してください')
   })
 
+  it('ITリテラシー配慮の補助テキストが表示される (Req 20.10)', () => {
+    const html = renderToString(<AICoachChat {...defaultProps} />)
+    expect(html).toContain('箇条書きでも短文でも大丈夫です')
+    expect(html).toContain('Ctrl+Enter または Command+Enter で送信できます')
+  })
+
   it('初期状態で「評価完了」ボタンが無効化されている (Req 9.3)', () => {
     const html = renderToString(<AICoachChat {...defaultProps} />)
     expect(html).toContain('評価完了')
@@ -45,8 +51,20 @@ describe('AICoachChat rendering', () => {
     expect(html).toContain('aria-live="polite"')
   })
 
+  it('チャットログ領域に aria-busy が設定されている', () => {
+    const html = renderToString(<AICoachChat {...defaultProps} />)
+    expect(html).toContain('aria-busy="false"')
+  })
+
   it('チャットログ領域に role="log" が設定されている', () => {
     const html = renderToString(<AICoachChat {...defaultProps} />)
     expect(html).toContain('role="log"')
+  })
+
+  it('モバイルで縦積みしやすいレスポンシブ class が設定されている (Req 20.11)', () => {
+    const html = renderToString(<AICoachChat {...defaultProps} />)
+    expect(html).toContain('sm:flex-row')
+    expect(html).toContain('w-full rounded-xl bg-emerald-700')
+    expect(html).toContain('sm:w-auto')
   })
 })
