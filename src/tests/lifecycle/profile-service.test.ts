@@ -218,7 +218,7 @@ describe('ProfileService.editProfile', () => {
     expect(updated?.avatarUrl).toBe('https://example.com/new-avatar.png')
   })
 
-  it('locale と timezone を更新できる', async () => {
+  it('Phase 1 では locale と timezone を固定し更新入力を無視する', async () => {
     const alice = makeAliceProfile()
     const { svc, profiles } = makeSetup([alice], { 'user-alice': 'EMPLOYEE' })
 
@@ -228,8 +228,8 @@ describe('ProfileService.editProfile', () => {
     })
 
     const updated = await profiles.findByUserId('user-alice')
-    expect(updated?.locale).toBe('en-US')
-    expect(updated?.timezone).toBe('America/New_York')
+    expect(updated?.locale).toBe('ja-JP')
+    expect(updated?.timezone).toBe('Asia/Tokyo')
   })
 
   it('phoneNumber を更新できる', async () => {

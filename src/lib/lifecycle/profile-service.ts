@@ -19,6 +19,7 @@ import {
   type ProfileViewBasic,
   type ProfileViewFull,
 } from './profile-types'
+import { PHASE1_LOCALE, PHASE1_TIMEZONE } from '@/lib/shared/locale'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ports (閲覧者情報取得用)
@@ -113,7 +114,9 @@ class ProfileServiceImpl implements ProfileService {
       throw new ProfileNotFoundError(userId)
     }
 
-    await this.profiles.update(userId, parsed)
+    const { locale: _locale, timezone: _timezone, ...editableFields } = parsed
+
+    await this.profiles.update(userId, editableFields)
   }
 }
 
@@ -134,8 +137,8 @@ function toFullView(record: ProfileRecord): ProfileViewFull {
     avatarUrl: record.avatarUrl,
     selfIntro: record.selfIntro,
     email: record.email,
-    locale: record.locale,
-    timezone: record.timezone,
+    locale: PHASE1_LOCALE,
+    timezone: PHASE1_TIMEZONE,
     role: record.role,
     status: record.status,
     hireDate: record.hireDate,
