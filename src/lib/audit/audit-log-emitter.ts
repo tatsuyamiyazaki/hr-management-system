@@ -30,8 +30,8 @@ class PrismaAuditLogEmitter implements AuditLogEmitter {
       await this.db.auditLog.create({
         data: {
           userId: entry.userId,
-          action: entry.action,
-          resourceType: entry.resourceType,
+          action: entry.action as never,
+          resourceType: entry.resourceType as never,
           resourceId: entry.resourceId,
           ipAddress: entry.ipAddress,
           userAgent: entry.userAgent,

@@ -41,6 +41,7 @@ export interface TotalEvaluationResult {
   readonly finalScore: number
   readonly status: TotalEvaluationStatus
   readonly calculatedAt: Date
+  readonly finalizedAt?: Date | null
 }
 
 export interface TotalEvaluationWeightOverride {
@@ -53,6 +54,17 @@ export interface TotalEvaluationWeightOverride {
   readonly reason: string
   readonly adjustedBy: string
   readonly adjustedAt: Date
+}
+
+export interface TotalEvaluationCorrection {
+  readonly id?: string
+  readonly cycleId: string
+  readonly subjectId: string
+  readonly before: Record<string, unknown>
+  readonly after: Record<string, unknown>
+  readonly reason: string
+  readonly correctedBy: string
+  readonly correctedAt: Date
 }
 
 export interface TotalEvaluationBoundaryThreshold {
@@ -94,6 +106,11 @@ export interface TotalEvaluationRepository {
   upsertWeightOverride(
     override: Omit<TotalEvaluationWeightOverride, 'id' | 'adjustedAt'>,
   ): Promise<TotalEvaluationWeightOverride>
+  finalizeResults(cycleId: string, finalizedAt: Date): Promise<TotalEvaluationResult[]>
+  findResult(cycleId: string, subjectId: string): Promise<TotalEvaluationResult | null>
+  createCorrection(
+    correction: Omit<TotalEvaluationCorrection, 'id' | 'correctedAt'>,
+  ): Promise<TotalEvaluationCorrection>
 }
 
 export interface GradeWeightProvider {
@@ -106,6 +123,10 @@ export interface IncentiveAdjustmentProvider {
 
 export interface GradeThresholdProvider {
   listThresholds(cycleId: string): Promise<readonly TotalEvaluationBoundaryThreshold[]>
+}
+
+export interface TotalEvaluationCycleCloser {
+  closeCycle(cycleId: string): Promise<void>
 }
 
 export const totalEvaluationCalculationPayloadSchema = z.object({
@@ -141,17 +162,63 @@ export type TotalEvaluationWeightOverridePayload = z.infer<
   typeof totalEvaluationWeightOverrideSchema
 >
 
-export interface TotalEvaluationOverrideWeightInput extends TotalEvaluationWeightOverridePayload {
-  readonly adjustedBy: string
+export const totalEvaluationFinalizeSchema = z.object({
+  cycleId: z.string().min(1),
+})
+
+export type TotalEvaluationFinalizePayload = z.infer<typeof totalEvaluationFinalizeSchema>
+
+export const totalEvaluationCorrectionSchema = z
+  .object({
+    cycleId: z.string().min(1),
+    subjectId: z.string().min(1),
+    performanceScore: z.number().min(0).max(100),
+    goalScore: z.number().min(0).max(100),
+    feedbackScore: z.number().min(0).max(100),
+    incentiveAdjustment: z.number().min(-100).max(100),
+    performanceWeight: z.number().min(0).max(1),
+    goalWeight: z.number().min(0).max(1),
+    feedbackWeight: z.number().min(0).max(1),
+    reason: z.string().trim().min(1).max(1000),
+  })
+  .superRefine((value, ctx) => {
+    const sum = value.performanceWeight + value.goalWeight + value.feedbackWeight
+    if (Math.abs(sum - 1) > 1e-6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Weight sum must equal 1 (got ${sum})`,
+        path: ['performanceWeight'],
+      })
+    }
+  })
+
+export type TotalEvaluationCorrectionPayload = z.infer<typeof totalEvaluationCorrectionSchema>
+
+interface TotalEvaluationActorContext {
   readonly ipAddress: string
   readonly userAgent: string
+}
+
+export interface TotalEvaluationOverrideWeightInput
+  extends TotalEvaluationWeightOverridePayload, TotalEvaluationActorContext {
+  readonly adjustedBy: string
+}
+
+export interface TotalEvaluationFinalizeInput
+  extends TotalEvaluationFinalizePayload, TotalEvaluationActorContext {
+  readonly finalizedBy: string
+}
+
+export interface TotalEvaluationCorrectionInput
+  extends TotalEvaluationCorrectionPayload, TotalEvaluationActorContext {
+  readonly correctedBy: string
 }
 
 export interface TotalEvaluationAuditLogger {
   emit(entry: {
     userId: string | null
-    action: 'RECORD_UPDATE'
-    resourceType: 'EVALUATION'
+    action: 'RECORD_UPDATE' | 'EVALUATION_FINALIZED'
+    resourceType: 'EVALUATION' | 'EVALUATION_CYCLE'
     resourceId: string | null
     ipAddress: string
     userAgent: string
@@ -177,6 +244,8 @@ export interface TotalEvaluationService {
     subjectId: string,
   ): Promise<TotalEvaluationWeightOverride | null>
   overrideWeight(input: TotalEvaluationOverrideWeightInput): Promise<TotalEvaluationResult>
+  finalize(input: TotalEvaluationFinalizeInput): Promise<TotalEvaluationResult[]>
+  correctAfterFinalize(input: TotalEvaluationCorrectionInput): Promise<TotalEvaluationResult>
 }
 
 export class TotalEvaluationInputNotFoundError extends Error {
@@ -197,5 +266,19 @@ export class TotalEvaluationJobQueueNotConfiguredError extends Error {
   constructor() {
     super('Total evaluation job queue is not configured')
     this.name = 'TotalEvaluationJobQueueNotConfiguredError'
+  }
+}
+
+export class TotalEvaluationResultNotFoundError extends Error {
+  constructor(cycleId: string, subjectId: string) {
+    super(`Total evaluation result not found: cycleId="${cycleId}", subjectId="${subjectId}"`)
+    this.name = 'TotalEvaluationResultNotFoundError'
+  }
+}
+
+export class TotalEvaluationNotFinalizedError extends Error {
+  constructor(cycleId: string, subjectId: string) {
+    super(`Total evaluation is not finalized: cycleId="${cycleId}", subjectId="${subjectId}"`)
+    this.name = 'TotalEvaluationNotFinalizedError'
   }
 }

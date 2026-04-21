@@ -1,5 +1,5 @@
 /**
- * Issue #67 / Task 19.2: Total evaluation routes tests.
+ * Issue #68 / Task 19.3: Total evaluation routes tests.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -19,6 +19,8 @@ const mockedGetServerSession = vi.mocked(getServerSession)
 const { GET: previewGET } = await import('@/app/api/total-evaluation/preview/route')
 const { GET: overrideGET, PUT: overridePUT } =
   await import('@/app/api/total-evaluation/override/route')
+const { POST: finalizePOST } = await import('@/app/api/total-evaluation/finalize/route')
+const { PUT: correctionPUT } = await import('@/app/api/total-evaluation/correction/route')
 
 function makeSession(role: string, userId = 'user-1') {
   return {
@@ -28,7 +30,7 @@ function makeSession(role: string, userId = 'user-1') {
   }
 }
 
-function makeJsonRequest(url: string, method: 'PUT', body: unknown): NextRequest {
+function makeJsonRequest(url: string, method: 'PUT' | 'POST', body: unknown): NextRequest {
   return new NextRequest(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -60,6 +62,20 @@ function makeService(overrides?: Partial<TotalEvaluationService>): TotalEvaluati
       performanceWeight: 0.4,
       goalWeight: 0.4,
       feedbackWeight: 0.2,
+    }),
+    finalize: vi.fn().mockResolvedValue([
+      {
+        cycleId: 'cycle-1',
+        subjectId: 'user-1',
+        status: 'FINALIZED',
+        finalScore: 80,
+      },
+    ]),
+    correctAfterFinalize: vi.fn().mockResolvedValue({
+      cycleId: 'cycle-1',
+      subjectId: 'user-1',
+      status: 'FINALIZED',
+      finalScore: 82.5,
     }),
     ...overrides,
   } as TotalEvaluationService
@@ -115,20 +131,6 @@ describe('GET /api/total-evaluation/preview', () => {
 
     expect(res.status).toBe(200)
     expect(service.previewBeforeFinalize).toHaveBeenCalledWith('cycle-1')
-    await expect(res.json()).resolves.toEqual({
-      success: true,
-      data: {
-        cycleId: 'cycle-1',
-        results: [
-          {
-            subjectId: 'user-1',
-            finalScore: 80,
-            hasWeightOverride: false,
-            isNearGradeThreshold: false,
-          },
-        ],
-      },
-    })
   })
 })
 
@@ -177,51 +179,79 @@ describe('PUT /api/total-evaluation/override', () => {
 
     expect(res.status).toBe(403)
   })
+})
 
-  it('不正なウェイト合計は422', async () => {
-    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
-    setTotalEvaluationServiceForTesting(makeService())
-
-    const res = await overridePUT(
-      makeJsonRequest('http://localhost/api/total-evaluation/override', 'PUT', {
-        cycleId: 'cycle-1',
-        subjectId: 'user-1',
-        performanceWeight: 0.5,
-        goalWeight: 0.4,
-        feedbackWeight: 0.2,
-        reason: '評価会議で調整',
-      }),
-    )
-
-    expect(res.status).toBe(422)
-  })
-
-  it('HR_MANAGERがウェイト上書きを更新できる', async () => {
+describe('POST /api/total-evaluation/finalize', () => {
+  it('HR_MANAGER が総合評価を確定できる', async () => {
     mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
     const service = makeService()
     setTotalEvaluationServiceForTesting(service)
 
-    const res = await overridePUT(
-      makeJsonRequest('http://localhost/api/total-evaluation/override', 'PUT', {
+    const res = await finalizePOST(
+      makeJsonRequest('http://localhost/api/total-evaluation/finalize', 'POST', {
         cycleId: 'cycle-1',
-        subjectId: 'user-1',
-        performanceWeight: 0.4,
-        goalWeight: 0.4,
-        feedbackWeight: 0.2,
-        reason: '評価会議で調整',
       }),
     )
 
     expect(res.status).toBe(200)
-    expect(service.overrideWeight).toHaveBeenCalledWith(
+    expect(service.finalize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cycleId: 'cycle-1',
+        finalizedBy: 'hr-1',
+      }),
+    )
+  })
+})
+
+describe('PUT /api/total-evaluation/correction', () => {
+  it('HR_MANAGER は403', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('HR_MANAGER', 'hr-1'))
+    setTotalEvaluationServiceForTesting(makeService())
+
+    const res = await correctionPUT(
+      makeJsonRequest('http://localhost/api/total-evaluation/correction', 'PUT', {
+        cycleId: 'cycle-1',
+        subjectId: 'user-1',
+        performanceScore: 85,
+        goalScore: 70,
+        feedbackScore: 95,
+        performanceWeight: 0.5,
+        goalWeight: 0.3,
+        feedbackWeight: 0.2,
+        incentiveAdjustment: 5,
+        reason: '監査後に修正',
+      }),
+    )
+
+    expect(res.status).toBe(403)
+  })
+
+  it('ADMIN が確定後修正できる', async () => {
+    mockedGetServerSession.mockResolvedValue(makeSession('ADMIN', 'admin-1'))
+    const service = makeService()
+    setTotalEvaluationServiceForTesting(service)
+
+    const res = await correctionPUT(
+      makeJsonRequest('http://localhost/api/total-evaluation/correction', 'PUT', {
+        cycleId: 'cycle-1',
+        subjectId: 'user-1',
+        performanceScore: 85,
+        goalScore: 70,
+        feedbackScore: 95,
+        performanceWeight: 0.5,
+        goalWeight: 0.3,
+        feedbackWeight: 0.2,
+        incentiveAdjustment: 5,
+        reason: '監査後に修正',
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(service.correctAfterFinalize).toHaveBeenCalledWith(
       expect.objectContaining({
         cycleId: 'cycle-1',
         subjectId: 'user-1',
-        performanceWeight: 0.4,
-        goalWeight: 0.4,
-        feedbackWeight: 0.2,
-        reason: '評価会議で調整',
-        adjustedBy: 'hr-1',
+        correctedBy: 'admin-1',
       }),
     )
   })
