@@ -134,11 +134,28 @@ export function createHttpsRedirectResponse(request: NextRequest): NextResponse 
   return NextResponse.redirect(redirectUrl, 308)
 }
 
+function buildContentSecurityPolicy(): string {
+  if (process.env.NODE_ENV === 'development') {
+    return [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+    ].join('; ')
+  }
+
+  return [
+    "default-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join('; ')
+}
+
 export function applySecurityHeaders(response: NextResponse): NextResponse {
-  response.headers.set(
-    'Content-Security-Policy',
-    "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none';",
-  )
+  response.headers.set('Content-Security-Policy', buildContentSecurityPolicy())
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
