@@ -4,6 +4,7 @@ import type { AuditLoggerPort } from '@/lib/rbac/authorizer'
 import { requireRole } from '@/lib/rbac/require-role'
 import { ForbiddenError, type AuthSubject } from '@/lib/rbac/rbac-types'
 import type { UserRole } from '@/lib/notification/notification-types'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 
 function subject(userId: string, role: UserRole): AuthSubject {
   return { userId, role }
@@ -16,6 +17,13 @@ interface AuditSpy extends AuditLoggerPort {
 function makeAuditSpy(): AuditSpy {
   const emit = vi.fn(async () => {})
   return { emit } as AuditSpy
+}
+
+function makeSecuritySpy(): SecurityEventRecorderPort & {
+  readonly record: ReturnType<typeof vi.fn>
+} {
+  const record = vi.fn(async () => [])
+  return { record }
 }
 
 describe('requireRole()', () => {
@@ -31,11 +39,13 @@ describe('requireRole()', () => {
 
   it('throws ForbiddenError when subject role is not in allowedRoles', async () => {
     const audit = makeAuditSpy()
+    const securityMonitor = makeSecuritySpy()
     await expect(
       requireRole(subject('e-1', 'EMPLOYEE'), ['ADMIN', 'HR_MANAGER'], {
         resourceHint: { type: 'EVALUATION', id: 'e1' },
         context: { ipAddress: '10.0.0.1', userAgent: 'Mozilla/5.0' },
         auditLogger: audit,
+        securityMonitor,
       }),
     ).rejects.toBeInstanceOf(ForbiddenError)
 
@@ -53,6 +63,13 @@ describe('requireRole()', () => {
       reason: 'DENIED_INSUFFICIENT_ROLE',
       subjectRole: 'EMPLOYEE',
     })
+    expect(securityMonitor.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ACCESS_DENIED',
+        userId: 'e-1',
+        ipAddress: '10.0.0.1',
+      }),
+    )
   })
 
   it('works without resourceHint (defaults resourceType / resourceId)', async () => {

@@ -26,6 +26,7 @@ import type { PasswordHasher } from './password-hasher'
 import { SESSION_ABSOLUTE_TTL_MS } from './session-store'
 import type { SessionStore } from './session-store'
 import type { AuthUserRepository } from './user-repository'
+import type { SecurityEventRecorderPort } from '@/lib/monitoring/security-monitoring-service'
 
 export interface LoginContext {
   readonly ipAddress?: string
@@ -86,6 +87,7 @@ export interface AuthServiceDeps {
   readonly notifier?: LockoutNotifier
   /** Task 6.2: ACCOUNT_LOCKED の監査ログ。未指定時は監査出力なし */
   readonly auditLogger?: AuthAuditLoggerPort
+  readonly securityMonitor?: SecurityEventRecorderPort
 }
 
 function defaultSessionIdFactory(): string {
@@ -107,6 +109,7 @@ class AuthServiceImpl implements AuthService {
   private readonly lockout?: LockoutStore
   private readonly notifier?: LockoutNotifier
   private readonly auditLogger?: AuthAuditLoggerPort
+  private readonly securityMonitor?: SecurityEventRecorderPort
 
   constructor(deps: AuthServiceDeps) {
     if (typeof deps.appSecret !== 'string' || deps.appSecret.length === 0) {
@@ -122,6 +125,7 @@ class AuthServiceImpl implements AuthService {
     this.lockout = deps.lockout
     this.notifier = deps.notifier
     this.auditLogger = deps.auditLogger
+    this.securityMonitor = deps.securityMonitor
   }
 
   async login(input: LoginInput, context?: LoginContext, now?: Date): Promise<Session> {
@@ -151,6 +155,23 @@ class AuthServiceImpl implements AuthService {
 
     const passwordOk = await this.passwordHasher.verify(parsed.password, user.passwordHash)
     if (!passwordOk) {
+      if (this.securityMonitor) {
+        try {
+          await this.securityMonitor.record({
+            type: 'AUTH_FAILURE',
+            occurredAt: issuedAt,
+            ipAddress: context?.ipAddress,
+            userId: user.id,
+            requestId: undefined,
+            path: undefined,
+            metadata: {
+              email: parsed.email,
+            },
+          })
+        } catch {
+          // 監視失敗は認証フローを妨げない
+        }
+      }
       await this.handleFailedAttempt(user.id, user.email, issuedAt, context)
       throw new InvalidCredentialsError()
     }
