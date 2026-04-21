@@ -13,12 +13,18 @@ describe('Next.js middleware integration', () => {
     expect(content).toContain('createAccessLogMiddleware')
   })
 
+  it('should import request security helpers', () => {
+    expect(content).toContain('applySecurityHeaders')
+    expect(content).toContain('enforceRateLimits')
+    expect(content).toContain('shouldRedirectToHttps')
+  })
+
   it('should export middleware function', () => {
     expect(content).toContain('export async function middleware')
   })
 
-  it('should configure matcher for /api/** paths', () => {
-    expect(content).toContain("'/api/:path*'")
+  it('should configure matcher as a global route pattern', () => {
+    expect(content).toContain('/((?!_next/static|_next/image|favicon.ico).*)')
   })
 
   it('should export config with matcher', () => {
