@@ -4,6 +4,9 @@ import type {
   DashboardRepository,
   DashboardService,
   DashboardSummary,
+  DashboardTrendFilter,
+  DashboardTrendPoint,
+  DashboardTrendSummary,
   EmployeeDashboardRow,
   KpiMetric,
 } from './dashboard-types'
@@ -11,6 +14,19 @@ import type {
 function toPercent(numerator: number, denominator: number): number {
   if (denominator <= 0) return 0
   return Math.round((numerator / denominator) * 10000) / 100
+}
+
+function unique(values: readonly string[]): readonly string[] {
+  return [...new Set(values)]
+}
+
+function normalizeTrendFilter(filter: Partial<DashboardTrendFilter>): DashboardTrendFilter {
+  return {
+    departmentIds: unique(filter.departmentIds ?? []),
+    cycleIds: unique(filter.cycleIds ?? []),
+    from: filter.from ?? null,
+    to: filter.to ?? null,
+  }
 }
 
 function buildCommonMetrics(
@@ -49,7 +65,7 @@ function buildEmployeeMetrics(aggregate: EmployeeDashboardRow): readonly KpiMetr
   return [
     {
       key: 'myFinalScore',
-      label: '自分の評価',
+      label: '自分の総合評価',
       value: aggregate.latestFinalScore ?? 0,
       unit: 'score',
     },
@@ -74,11 +90,23 @@ function buildEmployeeMetrics(aggregate: EmployeeDashboardRow): readonly KpiMetr
   ]
 }
 
-function buildEmptyStateMessage(metrics: readonly KpiMetric[]): string | null {
+function buildKpiEmptyStateMessage(metrics: readonly KpiMetric[]): string | null {
   const hasPositiveMetric = metrics.some((metric) => metric.value > 0)
   return hasPositiveMetric
     ? null
     : 'まだ表示できるデータがありません。評価、目標、スキル登録が進むとここにKPIが表示されます。'
+}
+
+function sortAndLimitTrend(points: readonly DashboardTrendPoint[]): readonly DashboardTrendPoint[] {
+  return [...points]
+    .sort((left, right) => left.periodEnd.getTime() - right.periodEnd.getTime())
+    .slice(-3)
+}
+
+function buildTrendEmptyStateMessage(points: readonly DashboardTrendPoint[]): string | null {
+  return points.length > 0
+    ? null
+    : 'トレンドを表示できるデータがありません。フィルタ条件を見直すか、評価サイクルの確定をお待ちください。'
 }
 
 class DashboardServiceImpl implements DashboardService {
@@ -95,7 +123,7 @@ class DashboardServiceImpl implements DashboardService {
         role,
         scopeUserId: userId,
         metrics,
-        emptyStateMessage: buildEmptyStateMessage(metrics),
+        emptyStateMessage: buildKpiEmptyStateMessage(metrics),
       }
     }
 
@@ -119,7 +147,7 @@ class DashboardServiceImpl implements DashboardService {
         role,
         scopeUserId: userId,
         metrics,
-        emptyStateMessage: buildEmptyStateMessage(metrics),
+        emptyStateMessage: buildKpiEmptyStateMessage(metrics),
       }
     }
 
@@ -129,7 +157,31 @@ class DashboardServiceImpl implements DashboardService {
       role,
       scopeUserId: userId,
       metrics,
-      emptyStateMessage: buildEmptyStateMessage(metrics),
+      emptyStateMessage: buildKpiEmptyStateMessage(metrics),
+    }
+  }
+
+  async getTrendSummary(
+    role: UserRole,
+    userId: string,
+    filter: Partial<DashboardTrendFilter>,
+  ): Promise<DashboardTrendSummary> {
+    const normalizedFilter = normalizeTrendFilter(filter)
+
+    const points =
+      role === 'ADMIN' || role === 'HR_MANAGER'
+        ? await this.repository.listCompanyTrend(normalizedFilter)
+        : role === 'MANAGER'
+          ? await this.repository.listManagerTrend(userId, normalizedFilter)
+          : await this.repository.listEmployeeTrend(userId, normalizedFilter)
+
+    const normalizedPoints = sortAndLimitTrend(points)
+    return {
+      role,
+      scopeUserId: userId,
+      filters: normalizedFilter,
+      points: normalizedPoints,
+      emptyStateMessage: buildTrendEmptyStateMessage(normalizedPoints),
     }
   }
 }

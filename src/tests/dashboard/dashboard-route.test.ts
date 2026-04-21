@@ -31,6 +31,7 @@ function makeService(overrides?: Partial<DashboardService>): DashboardService {
       emptyStateMessage:
         'まだ表示できるデータがありません。評価、目標、スキル登録が進むとここにKPIが表示されます。',
     }),
+    getTrendSummary: vi.fn(),
     ...overrides,
   }
 }
