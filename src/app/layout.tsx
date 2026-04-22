@@ -16,7 +16,7 @@ export default function RootLayout({
     <html lang="ja">
       <body className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 antialiased">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <div className="flex flex-1 flex-col overflow-y-auto">{children}</div>
       </body>
     </html>
   )
