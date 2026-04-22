@@ -22,18 +22,6 @@ function isDevelopmentAuthBypassEnabled(): boolean {
   )
 }
 
-function getDevelopmentSession(): AppSession {
-  return {
-    user: {
-      email: process.env.DEV_AUTH_EMAIL ?? 'dev-admin@example.com',
-      name: process.env.DEV_AUTH_NAME ?? 'Development User',
-    },
-    userId: process.env.DEV_AUTH_USER_ID ?? 'dev-user-1',
-    sessionId: process.env.DEV_AUTH_SESSION_ID ?? 'dev-session-1',
-    role: process.env.DEV_AUTH_ROLE ?? 'ADMIN',
-  }
-}
-
 function getLegacySessionGetter(): LegacySessionGetter | undefined {
   return undefined
 }
