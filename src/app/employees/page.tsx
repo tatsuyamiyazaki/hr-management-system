@@ -1,315 +1,350 @@
-/**
- * Issue #199: 社員名簿画面リデザイン
- *
- * - ヘッダー: 在籍数・部署数・役職数サマリ + CSV出力/CSV取込/+ 社員を追加ボタン
- * - 検索バー: テキスト検索（氏名・部署）+ 部署タブフィルタ
- * - テーブル: アバター(イニシャル) / 氏名 / 部署・役職 / ステータスバッジ / 詳細リンク
- * - クライアントサイドページネーション (24件/ページ)
- * - GET /api/search/employees — 社員一覧（全ステータス）
- */
 'use client'
 
 import {
-  useEffect,
-  useState,
-  useMemo,
   useCallback,
-  type ReactElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ChangeEvent,
+  type ReactElement,
 } from 'react'
-import type { EmployeeSearchResult, EmployeeStatus } from '@/lib/search/search-types'
+import type { Department, Employee, EmployeeStatus } from '@/lib/employees/employee-directory'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+type EmployeeListState =
+  | { kind: 'loading' }
+  | {
+      kind: 'ready'
+      employees: readonly Employee[]
+      total: number
+      page: number
+      activeTab: string
+    }
+  | { kind: 'error'; message: string }
 
-interface ApiEnvelope<T> {
-  readonly success?: boolean
-  readonly data?: T
-  readonly meta?: { readonly total: number }
-  readonly error?: string
+interface EmployeesPayload {
+  readonly employees?: readonly Employee[]
+  readonly total?: number
+  readonly page?: number
 }
 
-type PageState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly employees: readonly EmployeeSearchResult[] }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
+interface DepartmentsPayload {
+  readonly departments?: readonly Department[]
+}
 
 const PAGE_SIZE = 24
-
-const ALL_STATUSES: readonly EmployeeStatus[] = [
-  'ACTIVE',
-  'ON_LEAVE',
-  'RESIGNED',
-  'PENDING_JOIN',
-]
+const SUMMARY = {
+  activeEmployees: 1248,
+  departments: 48,
+  roles: 32,
+} as const
 
 const STATUS_LABELS: Record<EmployeeStatus, string> = {
   ACTIVE: '在籍',
   ON_LEAVE: '休職中',
-  RESIGNED: '退職',
-  PENDING_JOIN: '入社予定',
+  PARENTAL_LEAVE: '育休中',
+  RESIGNED: '退職予定',
 }
 
-const STATUS_COLORS: Record<EmployeeStatus, string> = {
-  ACTIVE: 'bg-emerald-100 text-emerald-800',
-  ON_LEAVE: 'bg-amber-100 text-amber-800',
-  RESIGNED: 'bg-slate-100 text-slate-500',
-  PENDING_JOIN: 'bg-blue-100 text-blue-800',
+const STATUS_STYLES: Record<EmployeeStatus, string> = {
+  ACTIVE: 'bg-emerald-50 text-emerald-700 ring-emerald-200 before:bg-emerald-500',
+  ON_LEAVE: 'bg-yellow-50 text-yellow-700 ring-yellow-200 before:bg-yellow-500',
+  PARENTAL_LEAVE: 'bg-orange-50 text-orange-700 ring-orange-200 before:bg-orange-500',
+  RESIGNED: 'bg-rose-50 text-rose-700 ring-rose-200 before:bg-rose-500',
 }
 
-const AVATAR_COLORS = [
-  'bg-indigo-100 text-indigo-700',
-  'bg-violet-100 text-violet-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-teal-100 text-teal-700',
-  'bg-pink-100 text-pink-700',
-  'bg-orange-100 text-orange-700',
-] as const
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function readError(err: unknown): string {
-  if (err instanceof Error) return err.message
-  return '予期せぬエラーが発生しました'
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('ja-JP').format(value)
 }
 
-function getInitials(firstName: string, lastName: string): string {
-  return `${lastName.charAt(0)}${firstName.charAt(0)}`.toUpperCase()
+function readError(error: unknown): string {
+  return error instanceof Error ? error.message : '社員名簿の取得に失敗しました'
 }
 
-function getAvatarColor(id: string): string {
-  const idx = id.charCodeAt(0) % AVATAR_COLORS.length
-  return AVATAR_COLORS[idx] ?? 'bg-slate-100 text-slate-700'
+function getInitials(employee: Employee): string {
+  return `${employee.lastName.charAt(0)}${employee.firstName.charAt(0)}`
 }
 
-function buildSearchUrl(statuses: readonly EmployeeStatus[]): string {
-  const params = new URLSearchParams({ keyword: ' ', limit: '100' })
-  for (const s of statuses) params.append('statuses[]', s)
-  return `/api/search/employees?${params.toString()}`
+function buildEmployeesUrl(page: number, activeTab: string): string {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(PAGE_SIZE),
+  })
+  if (activeTab) params.set('departmentId', activeTab)
+  return `/api/employees?${params.toString()}`
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
+function buildExportUrl(activeTab: string): string {
+  const params = new URLSearchParams({ format: 'csv' })
+  if (activeTab) params.set('departmentId', activeTab)
+  return `/api/employees/export?${params.toString()}`
+}
 
 export default function EmployeesPage(): ReactElement {
-  const [state, setState] = useState<PageState>({ kind: 'loading' })
-  const [keyword, setKeyword] = useState('')
-  const [deptFilter, setDeptFilter] = useState<string>('')
+  const [state, setState] = useState<EmployeeListState>({ kind: 'loading' })
+  const [departments, setDepartments] = useState<readonly Department[]>([])
   const [page, setPage] = useState(1)
+  const [activeTab, setActiveTab] = useState('')
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set())
+  const [isMoreOpen, setIsMoreOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
+
     void (async () => {
-      setState({ kind: 'loading' })
       try {
-        const res = await fetch(buildSearchUrl(ALL_STATUSES), { cache: 'no-store' })
-        const payload = (await res.json().catch(() => ({}))) as ApiEnvelope<
-          EmployeeSearchResult[]
-        >
-        if (!res.ok) throw new Error(payload.error ?? `HTTP ${res.status}`)
-        if (!cancelled) {
-          setState({ kind: 'ready', employees: Array.isArray(payload.data) ? payload.data : [] })
-        }
-      } catch (err) {
-        if (!cancelled) setState({ kind: 'error', message: readError(err) })
+        const response = await fetch('/api/departments', { cache: 'no-store' })
+        const payload = (await response.json().catch(() => ({}))) as DepartmentsPayload
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        if (!cancelled) setDepartments(payload.departments ?? [])
+      } catch {
+        if (!cancelled) setDepartments([])
       }
     })()
+
     return () => {
       cancelled = true
     }
   }, [])
 
-  const employees = state.kind === 'ready' ? state.employees : []
+  useEffect(() => {
+    let cancelled = false
 
-  const activeCount = employees.filter((e) => e.status === 'ACTIVE').length
-  const departments = useMemo(
-    () => Array.from(new Set(employees.map((e) => e.departmentName))).sort(),
-    [employees],
-  )
-  const roles = useMemo(
-    () => Array.from(new Set(employees.map((e) => e.roleName))),
-    [employees],
-  )
+    void (async () => {
+      setState({ kind: 'loading' })
+      try {
+        const response = await fetch(buildEmployeesUrl(page, activeTab), { cache: 'no-store' })
+        const payload = (await response.json().catch(() => ({}))) as EmployeesPayload
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        if (!cancelled) {
+          setState({
+            kind: 'ready',
+            employees: payload.employees ?? [],
+            total: payload.total ?? 0,
+            page: payload.page ?? page,
+            activeTab,
+          })
+          setSelectedIds(new Set())
+        }
+      } catch (error) {
+        if (!cancelled) setState({ kind: 'error', message: readError(error) })
+      }
+    })()
 
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase()
-    return employees.filter((e) => {
-      const matchDept = !deptFilter || e.departmentName === deptFilter
-      const matchKw =
-        !kw ||
-        `${e.lastName}${e.firstName}`.toLowerCase().includes(kw) ||
-        e.departmentName.toLowerCase().includes(kw) ||
-        e.roleName.toLowerCase().includes(kw) ||
-        e.id.toLowerCase().includes(kw)
-      return matchDept && matchKw
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, page])
+
+  const visibleDepartments = departments.slice(0, 4)
+  const hiddenDepartments = departments.slice(4)
+  const employees = useMemo(() => (state.kind === 'ready' ? state.employees : []), [state])
+  const total = state.kind === 'ready' ? state.total : SUMMARY.activeEmployees
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(page * PAGE_SIZE, total)
+  const visibleIds = useMemo(() => employees.map((employee) => employee.id), [employees])
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+
+  const handleTabChange = useCallback((departmentId: string) => {
+    setActiveTab(departmentId)
+    setPage(1)
+    setIsMoreOpen(false)
+  }, [])
+
+  const toggleEmployee = useCallback((employeeId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(employeeId)) {
+        next.delete(employeeId)
+      } else {
+        next.add(employeeId)
+      }
+      return next
     })
-  }, [employees, keyword, deptFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-
-  const handleKeywordChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setKeyword(e.target.value)
-    setPage(1)
   }, [])
 
-  const handleDeptChange = useCallback((dept: string) => {
-    setDeptFilter(dept)
-    setPage(1)
-  }, [])
+  const toggleVisibleEmployees = useCallback(() => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (visibleIds.every((id) => next.has(id))) {
+        visibleIds.forEach((id) => next.delete(id))
+      } else {
+        visibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }, [visibleIds])
 
-  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, filtered.length)
+  const handleImportChange = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.set('file', file)
+    await fetch('/api/employees/import', { method: 'POST', body: formData })
+    event.target.value = ''
+  }, [])
 
   return (
-    <main className="mx-auto max-w-7xl px-8 py-10">
-      {/* Header */}
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
-            Employees
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">社員名簿</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            在籍{' '}
-            <span className="font-semibold text-slate-900">{activeCount} 名</span>・部署{' '}
-            <span className="font-semibold text-slate-900">{departments.length}</span>・役職{' '}
-            <span className="font-semibold text-slate-900">{roles.length}</span>
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            CSV 出力
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            CSV 取込
-          </button>
-          <a
-            href="/employees/import"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-          >
-            ＋ 社員を追加
-          </a>
-        </div>
-      </header>
+    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <header className="flex flex-col gap-5 border-b border-slate-200 pb-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">社員名簿</h1>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <SummaryBadge label="在籍" value={`${formatNumber(SUMMARY.activeEmployees)}名`} />
+              <SummaryBadge label="部署" value={String(SUMMARY.departments)} />
+              <SummaryBadge label="役職" value={String(SUMMARY.roles)} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={buildExportUrl(activeTab)}
+              className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-100"
+            >
+              CSV出力
+            </a>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-100"
+            >
+              CSV取込
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportChange}
+            />
+            <a
+              href="/employees/import"
+              className="inline-flex h-10 items-center rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+            >
+              + 社員を追加
+            </a>
+          </div>
+        </header>
 
-      {/* Search bar */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-            🔍
-          </span>
-          <input
-            type="search"
-            value={keyword}
-            onChange={handleKeywordChange}
-            placeholder="氏名・社員番号・部署で検索"
-            className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-4 text-sm focus:border-indigo-400 focus:outline-none"
+        <nav className="relative mt-6 border-b border-slate-200" aria-label="部署フィルタ">
+          <div className="flex gap-6 overflow-x-auto">
+            <FilterTab
+              label={`全員 ${formatNumber(SUMMARY.activeEmployees)}`}
+              active={activeTab === ''}
+              onClick={() => handleTabChange('')}
+            />
+            {visibleDepartments.map((department) => (
+              <FilterTab
+                key={department.id}
+                label={department.name}
+                active={activeTab === department.id}
+                onClick={() => handleTabChange(department.id)}
+              />
+            ))}
+            {hiddenDepartments.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsMoreOpen((value) => !value)}
+                className="shrink-0 border-b-2 border-transparent px-1 pb-3 text-sm font-semibold text-slate-500 hover:text-slate-900"
+              >
+                +{hiddenDepartments.length}
+              </button>
+            )}
+          </div>
+          {isMoreOpen && (
+            <div className="absolute top-11 right-0 z-10 w-64 rounded-md border border-slate-200 bg-white py-2 shadow-lg">
+              {hiddenDepartments.map((department) => (
+                <button
+                  key={department.id}
+                  type="button"
+                  onClick={() => handleTabChange(department.id)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <span>{department.name}</span>
+                  <span className="text-xs text-slate-400">{department.employeeCount}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </nav>
+
+        <section className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <EmployeeTable
+            state={state}
+            selectedIds={selectedIds}
+            allVisibleSelected={allVisibleSelected}
+            onToggleAll={toggleVisibleEmployees}
+            onToggleEmployee={toggleEmployee}
           />
-        </div>
-        {state.kind === 'ready' && filtered.length > 0 && (
-          <p className="shrink-0 text-xs text-slate-500">
-            表示: {rangeStart}–{rangeEnd} / {filtered.length}
-          </p>
+        </section>
+
+        {state.kind === 'ready' && (
+          <footer className="mt-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {formatNumber(rangeStart)}-{formatNumber(rangeEnd)} / {formatNumber(total)}件
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                disabled={page === 1}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-lg text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="前のページ"
+              >
+                ←
+              </button>
+              <span className="min-w-24 text-center font-medium text-slate-800">
+                ページ {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                disabled={page === totalPages}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-lg text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="次のページ"
+              >
+                →
+              </button>
+            </div>
+          </footer>
         )}
       </div>
-
-      {/* Department tabs */}
-      {state.kind === 'ready' && (
-        <div className="mb-6 flex gap-1.5 overflow-x-auto pb-1">
-          <DeptTab
-            label={`全員 (${employees.length})`}
-            active={deptFilter === ''}
-            onClick={() => handleDeptChange('')}
-          />
-          {departments.slice(0, 6).map((dept) => {
-            const count = employees.filter((e) => e.departmentName === dept).length
-            return (
-              <DeptTab
-                key={dept}
-                label={`${dept} (${count})`}
-                active={deptFilter === dept}
-                onClick={() => handleDeptChange(dept)}
-              />
-            )
-          })}
-          {departments.length > 6 && (
-            <span className="flex items-center rounded-lg px-3 py-1.5 text-xs text-slate-400">
-              +{departments.length - 6}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Table */}
-      <EmployeeTable state={state} employees={paginated} />
-
-      {/* Pagination */}
-      {state.kind === 'ready' && totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-1.5">
-          <PaginationBtn
-            label="«"
-            disabled={currentPage === 1}
-            onClick={() => setPage(1)}
-          />
-          <PaginationBtn
-            label="‹"
-            disabled={currentPage === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          />
-          <span className="px-4 text-sm font-medium text-slate-700 tabular-nums">
-            {currentPage} / {totalPages}
-          </span>
-          <PaginationBtn
-            label="›"
-            disabled={currentPage === totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          />
-          <PaginationBtn
-            label="»"
-            disabled={currentPage === totalPages}
-            onClick={() => setPage(totalPages)}
-          />
-        </div>
-      )}
     </main>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DeptTab
-// ─────────────────────────────────────────────────────────────────────────────
+interface SummaryBadgeProps {
+  readonly label: string
+  readonly value: string
+}
 
-interface DeptTabProps {
+function SummaryBadge({ label, value }: SummaryBadgeProps): ReactElement {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-sm text-slate-600 ring-1 ring-slate-200">
+      {label}
+      <strong className="font-semibold text-slate-950">{value}</strong>
+    </span>
+  )
+}
+
+interface FilterTabProps {
   readonly label: string
   readonly active: boolean
   readonly onClick: () => void
 }
 
-function DeptTab({ label, active, onClick }: DeptTabProps): ReactElement {
+function FilterTab({ label, active, onClick }: FilterTabProps): ReactElement {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+      className={`shrink-0 border-b-2 px-1 pb-3 text-sm font-semibold ${
         active
-          ? 'bg-indigo-600 text-white shadow-sm'
-          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+          ? 'border-indigo-600 text-indigo-700'
+          : 'border-transparent text-slate-500 hover:text-slate-900'
       }`}
     >
       {label}
@@ -317,80 +352,71 @@ function DeptTab({ label, active, onClick }: DeptTabProps): ReactElement {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PaginationBtn
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface PaginationBtnProps {
-  readonly label: string
-  readonly disabled: boolean
-  readonly onClick: () => void
-}
-
-function PaginationBtn({ label, disabled, onClick }: PaginationBtnProps): ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {label}
-    </button>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EmployeeTable
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface EmployeeTableProps {
-  readonly state: PageState
-  readonly employees: readonly EmployeeSearchResult[]
+  readonly state: EmployeeListState
+  readonly selectedIds: ReadonlySet<string>
+  readonly allVisibleSelected: boolean
+  readonly onToggleAll: () => void
+  readonly onToggleEmployee: (employeeId: string) => void
 }
 
-function EmployeeTable({ state, employees }: EmployeeTableProps): ReactElement {
+function EmployeeTable({
+  state,
+  selectedIds,
+  allVisibleSelected,
+  onToggleAll,
+  onToggleEmployee,
+}: EmployeeTableProps): ReactElement {
   if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-sm text-slate-500">
-        <span className="animate-pulse">社員データを読み込み中…</span>
-      </div>
-    )
+    return <div className="px-6 py-16 text-center text-sm text-slate-500">読み込み中...</div>
   }
+
   if (state.kind === 'error') {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">社員データの取得に失敗しました</p>
-        <p className="mt-1 text-xs opacity-80">{state.message}</p>
-      </div>
-    )
-  }
-  if (employees.length === 0) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
-        該当する社員が見つかりませんでした
+      <div className="px-6 py-16 text-center text-sm text-rose-700">
+        <p className="font-semibold">社員名簿を取得できませんでした</p>
+        <p className="mt-1 text-xs">{state.message}</p>
       </div>
     )
   }
 
+  if (state.employees.length === 0) {
+    return (
+      <div className="px-6 py-16 text-center text-sm text-slate-500">該当する社員はいません</div>
+    )
+  }
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
-            <th className="w-8 px-4 py-3">
-              <input type="checkbox" className="rounded border-slate-300" />
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+          <tr>
+            <th className="w-12 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={onToggleAll}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                aria-label="表示中の社員を選択"
+              />
             </th>
-            <th className="px-4 py-3">氏名</th>
+            <th className="px-4 py-3">社員</th>
             <th className="px-4 py-3">社員番号</th>
-            <th className="px-4 py-3">部署 / 役職</th>
+            <th className="px-4 py-3">部署・役職</th>
+            <th className="px-4 py-3">等級</th>
+            <th className="px-4 py-3">入社日</th>
             <th className="px-4 py-3">ステータス</th>
-            <th className="px-4 py-3 text-right">詳細</th>
+            <th className="w-12 px-4 py-3 text-right">▶</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {employees.map((emp) => (
-            <EmployeeRow key={emp.id} employee={emp} />
+          {state.employees.map((employee) => (
+            <EmployeeRow
+              key={employee.id}
+              employee={employee}
+              selected={selectedIds.has(employee.id)}
+              onToggle={() => onToggleEmployee(employee.id)}
+            />
           ))}
         </tbody>
       </table>
@@ -398,56 +424,62 @@ function EmployeeTable({ state, employees }: EmployeeTableProps): ReactElement {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EmployeeRow
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface EmployeeRowProps {
-  readonly employee: EmployeeSearchResult
+  readonly employee: Employee
+  readonly selected: boolean
+  readonly onToggle: () => void
 }
 
-function EmployeeRow({ employee: emp }: EmployeeRowProps): ReactElement {
-  const ini = getInitials(emp.firstName, emp.lastName)
-  const avatarCls = getAvatarColor(emp.id)
-  const empNo = `emp-${emp.id.slice(0, 5).toUpperCase()}`
-
+function EmployeeRow({ employee, selected, onToggle }: EmployeeRowProps): ReactElement {
   return (
     <tr className="hover:bg-slate-50">
       <td className="px-4 py-3">
-        <input type="checkbox" className="rounded border-slate-300" />
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+          aria-label={`${employee.lastName} ${employee.firstName}を選択`}
+        />
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <span
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${avatarCls}`}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${employee.avatarColor}`}
           >
-            {ini}
+            {getInitials(employee)}
           </span>
           <div>
-            <p className="font-medium text-slate-900">
-              {emp.lastName} {emp.firstName}
+            <p className="font-semibold text-slate-950">
+              {employee.lastName} {employee.firstName}
             </p>
-            <p className="text-xs text-slate-400">—</p>
+            <p className="text-xs text-slate-500">{employee.email}</p>
           </div>
         </div>
       </td>
-      <td className="px-4 py-3 font-mono text-xs text-slate-600">{empNo}</td>
+      <td className="px-4 py-3 font-mono text-xs text-slate-600">{employee.employeeNumber}</td>
       <td className="px-4 py-3">
-        <p className="text-sm text-slate-800">{emp.departmentName}</p>
-        <p className="mt-0.5 text-xs text-slate-400">{emp.roleName}</p>
+        <p className="text-slate-700">{employee.departmentName}</p>
+        <p className="text-xs text-slate-500">{employee.roleName}</p>
       </td>
       <td className="px-4 py-3">
+        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+          {employee.grade}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-slate-600">{employee.joinDate}</td>
+      <td className="px-4 py-3">
         <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[emp.status]}`}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 before:h-2 before:w-2 before:rounded-full before:content-[''] ${STATUS_STYLES[employee.status]}`}
         >
-          {STATUS_LABELS[emp.status]}
+          {STATUS_LABELS[employee.status]}
         </span>
       </td>
       <td className="px-4 py-3 text-right">
         <a
-          href={`/employees/search?keyword=${encodeURIComponent(`${emp.lastName}${emp.firstName}`)}`}
-          className="rounded px-1.5 py-1 text-sm text-indigo-600 hover:text-indigo-800"
-          aria-label={`${emp.lastName} ${emp.firstName}の詳細`}
+          href={`/employees/search?keyword=${encodeURIComponent(employee.employeeNumber)}`}
+          className="text-lg font-semibold text-slate-400 hover:text-indigo-600"
+          aria-label={`${employee.lastName} ${employee.firstName}の詳細`}
         >
           ›
         </a>
