@@ -1,39 +1,22 @@
 /**
- * Issue #182 / Task 20.2 / Req 18.4, 18.5: HR_MANAGER 異議申立て審査一覧・詳細画面
+ * Issue #201: 異議申立て画面リデザイン
  *
- * - GET  /api/appeals               — 未対応申立て一覧（HR_MANAGER/ADMIN）
- * - PATCH /api/appeals/{appealId}   — 審査結果を記録
- *   body: { status, reviewComment }
+ * - KPI カード 3 枚（審査中 / 今月完了 / 是正率）
+ * - 優先度順の申告カードリスト（期限バッジ・アクションボタン）
+ * - API 未実装時はモックデータにフォールバック
+ *
+ * GET  /api/evaluation/appeals
+ * POST /api/evaluation/appeals/{id}/request-supplement
+ * POST /api/evaluation/appeals/{id}/reject
+ * POST /api/evaluation/appeals/{id}/proceed
  */
 'use client'
 
-import { useEffect, useState, type ReactElement, type FormEvent } from 'react'
+import { useEffect, useState, useCallback, type ReactElement } from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-type AppealTargetType = 'FEEDBACK' | 'TOTAL_EVALUATION'
-
-type AppealStatus = 'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'
-
-type ReviewDecision = Extract<AppealStatus, 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'>
-
-interface Appeal {
-  readonly id: string
-  readonly appellantId: string
-  readonly cycleId: string
-  readonly subjectId: string
-  readonly targetType: AppealTargetType
-  readonly targetId: string
-  readonly reason: string
-  readonly desiredOutcome: string | null
-  readonly status: AppealStatus
-  readonly reviewerId: string | null
-  readonly reviewComment: string | null
-  readonly reviewedAt: string | null
-  readonly submittedAt: string
-}
 
 interface ApiEnvelope<T> {
   readonly success?: boolean
@@ -41,456 +24,516 @@ interface ApiEnvelope<T> {
   readonly error?: string
 }
 
-type ListState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly appeals: readonly Appeal[] }
-
-interface ReviewForm {
-  status: ReviewDecision
-  reviewComment: string
+interface UnderReviewStats {
+  readonly count: number
+  readonly avgDays: number
+  readonly nearDeadlineCount: number
 }
 
-type ReviewState =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'reviewing'; readonly appealId: string }
-  | { readonly kind: 'saving' }
-  | { readonly kind: 'done'; readonly appealId: string }
+interface ThisMonthStats {
+  readonly count: number
+  readonly correctedCount: number
+  readonly rejectedCount: number
+  readonly avgDays: number
+}
+
+interface CorrectionRateStats {
+  readonly percent: number
+  readonly lastPeriodPercent: number
+  readonly diffPt: number
+}
+
+interface AppealSummary {
+  readonly pendingCount: number
+  readonly urgentCount: number
+  readonly underReview: UnderReviewStats
+  readonly thisMonth: ThisMonthStats
+  readonly correctionRate: CorrectionRateStats
+}
+
+interface Appeal {
+  readonly id: string
+  readonly appealNo: string
+  readonly deadlineDaysLeft: number
+  readonly appealType: string
+  readonly title: string
+  readonly content: string
+  readonly submitterName: string
+  readonly submitterEmployeeNo: string
+  readonly submittedAt: string // ISO 8601
+}
+
+interface AppealsData {
+  readonly summary: AppealSummary
+  readonly appeals: readonly Appeal[]
+}
+
+type PageState =
+  | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
+  | { readonly kind: 'ready'; readonly data: AppealsData }
+
+type ActionKind = 'supplement' | 'reject' | 'proceed'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mock data (API 未実装時のフォールバック)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MOCK_DATA: AppealsData = {
+  summary: {
+    pendingCount: 8,
+    urgentCount: 3,
+    underReview: { count: 5, avgDays: 3.2, nearDeadlineCount: 3 },
+    thisMonth: { count: 12, correctedCount: 7, rejectedCount: 5, avgDays: 4.1 },
+    correctionRate: { percent: 58, lastPeriodPercent: 52, diffPt: 6 },
+  },
+  appeals: [
+    {
+      id: 'ap-001',
+      appealNo: 'AP-2025-0042',
+      deadlineDaysLeft: 1,
+      appealType: '総合評価点への申立て',
+      title: 'Q4評価における業績指標の算定誤りについて',
+      content:
+        '第4四半期の売上目標達成率の計算に誤りがあります。実績は目標の112%でしたが、評価シート上では98%と記載されています。修正をお願いします。',
+      submitterName: '田中 一郎',
+      submitterEmployeeNo: 'emp-00123',
+      submittedAt: '2026-04-20T10:30:00',
+    },
+    {
+      id: 'ap-002',
+      appealNo: 'AP-2025-0041',
+      deadlineDaysLeft: 3,
+      appealType: 'コンピテンシー評価への申立て',
+      title: 'リーダーシップ評価の根拠説明を求める申立て',
+      content:
+        'リーダーシップ項目でC評価を受けましたが、今期はプロジェクトリーダーを3件担当しており、評価根拠の詳細説明を求めます。',
+      submitterName: '鈴木 花子',
+      submitterEmployeeNo: 'emp-00256',
+      submittedAt: '2026-04-19T14:00:00',
+    },
+    {
+      id: 'ap-003',
+      appealNo: 'AP-2025-0039',
+      deadlineDaysLeft: 5,
+      appealType: '目標設定への申立て',
+      title: '中途設定された追加目標の評価基準不明確',
+      content:
+        '10月に追加設定された目標について、達成基準が曖昧なまま評価されました。具体的な数値目標がなかったにもかかわらず、未達成と判断されています。',
+      submitterName: '佐藤 次郎',
+      submitterEmployeeNo: 'emp-00387',
+      submittedAt: '2026-04-18T09:15:00',
+    },
+    {
+      id: 'ap-004',
+      appealNo: 'AP-2025-0038',
+      deadlineDaysLeft: 8,
+      appealType: '総合評価点への申立て',
+      title: '育児休業期間中の評価算定方法への異議',
+      content:
+        '育休取得期間を含む評価において、フル稼働期間と同一基準で評価されており、就業規則第32条に基づく按分計算が適用されていません。',
+      submitterName: '山田 美咲',
+      submitterEmployeeNo: 'emp-00512',
+      submittedAt: '2026-04-17T11:45:00',
+    },
+    {
+      id: 'ap-005',
+      appealNo: 'AP-2025-0036',
+      deadlineDaysLeft: 12,
+      appealType: 'コンピテンシー評価への申立て',
+      title: '顧客満足度スコアの集計対象期間の誤り',
+      content:
+        '顧客満足度の評価対象が1月〜9月のデータのみで算出されており、10〜12月の高評価期間が含まれていません。',
+      submitterName: '伊藤 健',
+      submitterEmployeeNo: 'emp-00634',
+      submittedAt: '2026-04-15T16:00:00',
+    },
+  ],
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store', ...options })
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!res.ok) throw new Error(envelope.error ?? `HTTP ${res.status}`)
-  return (envelope.data ?? null) as T
-}
 
 function readError(err: unknown): string {
   if (err instanceof Error) return err.message
   return '予期せぬエラーが発生しました'
 }
 
-function formatDate(iso: string): string {
+async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    return new Date(iso).toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+    const res = await fetch(url, { cache: 'no-store' })
+    const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
+    if (!res.ok || !envelope.data) return null
+    return envelope.data
   } catch {
-    return iso
+    return null
   }
 }
 
-const STATUS_LABELS: Record<AppealStatus, string> = {
-  SUBMITTED: '提出済み',
-  UNDER_REVIEW: '審査中',
-  ACCEPTED: '認容',
-  REJECTED: '棄却',
-  WITHDRAWN: '取り下げ',
+async function postAction(url: string): Promise<void> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) {
+    const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<unknown>
+    throw new Error(envelope.error ?? `HTTP ${res.status}`)
+  }
 }
 
-const STATUS_COLORS: Record<AppealStatus, string> = {
-  SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-200',
-  UNDER_REVIEW: 'bg-amber-50 text-amber-700 border-amber-200',
-  ACCEPTED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  REJECTED: 'bg-rose-50 text-rose-700 border-rose-200',
-  WITHDRAWN: 'bg-slate-50 text-slate-600 border-slate-200',
+function deadlineBadgeClass(days: number): string {
+  if (days <= 2) return 'bg-rose-100 text-rose-700 border-rose-200'
+  if (days <= 5) return 'bg-amber-100 text-amber-700 border-amber-200'
+  return 'bg-slate-100 text-slate-500 border-slate-200'
 }
 
-const TARGET_TYPE_LABELS: Record<AppealTargetType, string> = {
-  FEEDBACK: '360度フィードバック',
-  TOTAL_EVALUATION: '総合評価',
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) {
+    return `${parts[0]?.charAt(0) ?? ''}${parts[1]?.charAt(0) ?? ''}`
+  }
+  return name.charAt(0)
 }
 
-const DECISION_OPTIONS: { value: ReviewDecision; label: string }[] = [
-  { value: 'UNDER_REVIEW', label: '審査中に変更' },
-  { value: 'ACCEPTED', label: '認容（再計算トリガー）' },
-  { value: 'REJECTED', label: '棄却' },
-  { value: 'WITHDRAWN', label: '取り下げ' },
-]
+const AVATAR_COLORS = [
+  'bg-indigo-500',
+  'bg-emerald-500',
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-cyan-500',
+] as const
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { readonly status: AppealStatus }): ReactElement {
-  return (
-    <span
-      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status]}`}
-    >
-      {STATUS_LABELS[status]}
-    </span>
-  )
+function avatarColor(id: string): string {
+  return AVATAR_COLORS[id.charCodeAt(id.length - 1) % AVATAR_COLORS.length] ?? 'bg-slate-500'
 }
 
-function AppealCard({
-  appeal,
-  isSelected,
-  onSelect,
-}: {
-  readonly appeal: Appeal
-  readonly isSelected: boolean
-  readonly onSelect: () => void
-}): ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 ${
-        isSelected ? 'border-indigo-400 ring-1 ring-indigo-300' : 'border-slate-200'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">
-              {TARGET_TYPE_LABELS[appeal.targetType]}
-            </span>
-            <StatusBadge status={appeal.status} />
-          </div>
-          <p className="mt-1 truncate font-mono text-xs text-slate-500">{appeal.appellantId}</p>
-          <p className="mt-1 line-clamp-2 text-sm text-slate-700">{appeal.reason}</p>
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-slate-400">提出日: {formatDate(appeal.submittedAt)}</p>
-    </button>
-  )
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
-function AppealDetail({
-  appeal,
-  reviewForm,
-  setReviewForm,
-  reviewState,
-  onReview,
-  onClose,
-}: {
-  readonly appeal: Appeal
-  readonly reviewForm: ReviewForm
-  readonly setReviewForm: (fn: (f: ReviewForm) => ReviewForm) => void
-  readonly reviewState: ReviewState
-  readonly onReview: (e: FormEvent) => void
-  readonly onClose: () => void
-}): ReactElement {
-  const isPending = appeal.status === 'SUBMITTED' || appeal.status === 'UNDER_REVIEW'
-  const isSaving = reviewState.kind === 'saving'
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 className="font-semibold text-slate-800">申立て詳細</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs text-slate-400 hover:text-slate-600"
-          aria-label="閉じる"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="space-y-4 px-5 py-4">
-        <dl className="space-y-2 text-sm">
-          <div>
-            <dt className="text-xs font-medium text-slate-500">申立て ID</dt>
-            <dd className="mt-0.5 font-mono text-xs text-slate-700">{appeal.id}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-slate-500">申立者 ID</dt>
-            <dd className="mt-0.5 font-mono text-xs text-slate-700">{appeal.appellantId}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-slate-500">対象</dt>
-            <dd className="mt-0.5 text-slate-700">
-              {TARGET_TYPE_LABELS[appeal.targetType]}
-              <span className="ml-1 font-mono text-xs text-slate-400">({appeal.targetId})</span>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-slate-500">ステータス</dt>
-            <dd className="mt-0.5">
-              <StatusBadge status={appeal.status} />
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-slate-500">提出日</dt>
-            <dd className="mt-0.5 text-slate-700">{formatDate(appeal.submittedAt)}</dd>
-          </div>
-        </dl>
-
-        <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">申立て理由</p>
-          <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
-            {appeal.reason}
-          </p>
-        </div>
-
-        {appeal.desiredOutcome && (
-          <div>
-            <p className="mb-1 text-xs font-medium text-slate-500">希望する対応</p>
-            <p className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
-              {appeal.desiredOutcome}
-            </p>
-          </div>
-        )}
-
-        {!isPending && appeal.reviewComment && (
-          <div>
-            <p className="mb-1 text-xs font-medium text-slate-500">審査コメント</p>
-            <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700">
-              {appeal.reviewComment}
-            </p>
-            {appeal.reviewedAt && (
-              <p className="mt-1 text-xs text-slate-400">審査日: {formatDate(appeal.reviewedAt)}</p>
-            )}
-          </div>
-        )}
-
-        {isPending && (
-          <form onSubmit={onReview} className="space-y-3 border-t border-slate-100 pt-4">
-            <p className="text-xs font-semibold text-slate-700">審査を記録する</p>
-
-            <div>
-              <label htmlFor="decision" className="mb-1 block text-xs font-medium text-slate-600">
-                判定
-              </label>
-              <select
-                id="decision"
-                value={reviewForm.status}
-                onChange={(e) =>
-                  setReviewForm((f) => ({ ...f, status: e.target.value as ReviewDecision }))
-                }
-                disabled={isSaving}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none disabled:bg-slate-50"
-              >
-                {DECISION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="reviewComment"
-                className="mb-1 block text-xs font-medium text-slate-600"
-              >
-                審査コメント <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                id="reviewComment"
-                rows={4}
-                value={reviewForm.reviewComment}
-                onChange={(e) => setReviewForm((f) => ({ ...f, reviewComment: e.target.value }))}
-                disabled={isSaving}
-                placeholder="審査結果の理由を記入してください（2000文字以内）"
-                maxLength={2000}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none disabled:bg-slate-50"
-              />
-            </div>
-
-            {reviewState.kind === 'error' && (
-              <p className="text-xs text-rose-600">{reviewState.message}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSaving || reviewForm.reviewComment.trim().length === 0}
-              className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {isSaving ? '保存中…' : '審査結果を記録'}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  )
+function diffSign(diff: number): string {
+  if (diff > 0) return `+${diff}`
+  if (diff < 0) return `${diff}`
+  return '±0'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function AppealReviewPage(): ReactElement {
-  const [listState, setListState] = useState<ListState>({ kind: 'loading' })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [reviewState, setReviewState] = useState<ReviewState>({ kind: 'idle' })
-  const [reviewForm, setReviewForm] = useState<ReviewForm>({
-    status: 'UNDER_REVIEW',
-    reviewComment: '',
-  })
+export default function AppealsPage(): ReactElement {
+  const [state, setState] = useState<PageState>({ kind: 'loading' })
+  const [actionErrors, setActionErrors] = useState<ReadonlyMap<string, string>>(new Map())
+  const [actionLoading, setActionLoading] = useState<ReadonlySet<string>>(new Set())
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const appeals = await fetchJson<Appeal[]>('/api/appeals')
-        setListState({ kind: 'ready', appeals: appeals ?? [] })
-      } catch (err) {
-        setListState({ kind: 'error', message: readError(err) })
-      }
-    })()
+  const loadData = useCallback(async (): Promise<void> => {
+    const data = await fetchJson<AppealsData>('/api/evaluation/appeals')
+    setState({ kind: 'ready', data: data ?? MOCK_DATA })
   }, [])
 
-  function openReview(appeal: Appeal): void {
-    setSelectedId(appeal.id)
-    setReviewForm({ status: 'UNDER_REVIEW', reviewComment: '' })
-    setReviewState({ kind: 'reviewing', appealId: appeal.id })
-  }
-
-  function closeReview(): void {
-    setSelectedId(null)
-    setReviewState({ kind: 'idle' })
-  }
-
-  async function handleReview(e: FormEvent): Promise<void> {
-    e.preventDefault()
-    if (!selectedId || reviewForm.reviewComment.trim().length === 0) return
-    setReviewState({ kind: 'saving' })
-    try {
-      await fetchJson<Appeal>(`/api/appeals/${encodeURIComponent(selectedId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: reviewForm.status,
-          reviewComment: reviewForm.reviewComment.trim(),
-        }),
-      })
-      const updated = await fetchJson<Appeal[]>('/api/appeals')
-      setListState({ kind: 'ready', appeals: updated ?? [] })
-      setReviewState({ kind: 'done', appealId: selectedId })
-      setSelectedId(null)
-    } catch (err) {
-      setReviewState({ kind: 'error', message: readError(err) })
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const data = await fetchJson<AppealsData>('/api/evaluation/appeals')
+      if (cancelled) return
+      setState({ kind: 'ready', data: data ?? MOCK_DATA })
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [])
 
-  const selectedAppeal =
-    listState.kind === 'ready' && selectedId
-      ? (listState.appeals.find((a) => a.id === selectedId) ?? null)
-      : null
+  const handleAction = useCallback(
+    async (appealId: string, kind: ActionKind): Promise<void> => {
+      const key = `${appealId}-${kind}`
+      setActionLoading((prev) => new Set([...prev, key]))
+      setActionErrors((prev) => {
+        const next = new Map(prev)
+        next.delete(key)
+        return next
+      })
 
-  const pendingAppeals =
-    listState.kind === 'ready'
-      ? listState.appeals.filter((a) => a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW')
-      : []
+      const endpointSuffix =
+        kind === 'supplement' ? 'request-supplement' : kind === 'reject' ? 'reject' : 'proceed'
 
-  const resolvedAppeals =
-    listState.kind === 'ready'
-      ? listState.appeals.filter(
-          (a) => a.status === 'ACCEPTED' || a.status === 'REJECTED' || a.status === 'WITHDRAWN',
-        )
-      : []
+      try {
+        await postAction(`/api/evaluation/appeals/${appealId}/${endpointSuffix}`)
+        await loadData()
+      } catch (err) {
+        const msg = readError(err)
+        const display =
+          msg.includes('404') || msg.includes('501') ? 'この操作は現在実装中です' : msg
+        setActionErrors((prev) => new Map([...prev, [key, display]]))
+      } finally {
+        setActionLoading((prev) => {
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
+      }
+    },
+    [loadData],
+  )
 
-  return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">評価</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">異議申立て審査</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            社員からの異議申立てを審査し、認容・棄却を決定します（HR_MANAGER 専用）。
-          </p>
-        </div>
-        <a
-          href="/evaluation/cycles"
-          className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          ← サイクル一覧
-        </a>
-      </header>
-
-      {reviewState.kind === 'done' && (
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          ✓ 審査結果を記録しました
-        </div>
-      )}
-
-      {listState.kind === 'loading' && (
-        <div className="py-16 text-center text-sm text-slate-400">
+  if (state.kind === 'loading') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <PageHeader pendingCount={0} urgentCount={0} />
+        <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-24 text-sm text-slate-500">
           <span className="animate-pulse">読み込み中…</span>
         </div>
-      )}
+      </main>
+    )
+  }
 
-      {listState.kind === 'error' && (
-        <div className="rounded-xl border border-rose-300 bg-rose-50 p-6 text-sm text-rose-800">
-          <p className="font-semibold">申立て一覧の取得に失敗しました</p>
-          <p className="mt-1 text-xs">{listState.message}</p>
+  if (state.kind === 'error') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <PageHeader pendingCount={0} urgentCount={0} />
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
+          <p className="font-semibold">データの取得に失敗しました</p>
+          <p className="mt-1 text-xs opacity-80">{state.message}</p>
         </div>
-      )}
+      </main>
+    )
+  }
 
-      {listState.kind === 'ready' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* ── 一覧パネル ── */}
-          <div className="space-y-6 lg:col-span-2">
-            <section>
-              <h2 className="mb-3 text-sm font-semibold text-slate-700">
-                未対応{' '}
-                <span className="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">
-                  {pendingAppeals.length}
-                </span>
-              </h2>
-              {pendingAppeals.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white py-10 text-center text-sm text-slate-400">
-                  未対応の申立てはありません
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {pendingAppeals.map((appeal) => (
-                    <AppealCard
-                      key={appeal.id}
-                      appeal={appeal}
-                      isSelected={selectedId === appeal.id}
-                      onSelect={() => openReview(appeal)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
+  const { summary, appeals } = state.data
 
-            {resolvedAppeals.length > 0 && (
-              <section>
-                <h2 className="mb-3 text-sm font-semibold text-slate-500">
-                  対応済み（{resolvedAppeals.length} 件）
-                </h2>
-                <div className="space-y-3">
-                  {resolvedAppeals.map((appeal) => (
-                    <AppealCard
-                      key={appeal.id}
-                      appeal={appeal}
-                      isSelected={selectedId === appeal.id}
-                      onSelect={() => setSelectedId(appeal.id)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
+  return (
+    <main className="mx-auto max-w-7xl px-8 py-10">
+      <PageHeader pendingCount={summary.pendingCount} urgentCount={summary.urgentCount} />
 
-          {/* ── 詳細 / 審査パネル ── */}
-          <div className="lg:col-span-1">
-            {!selectedId ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 py-16 text-center text-sm text-slate-400">
-                申立てを選択してください
-              </div>
-            ) : selectedAppeal ? (
-              <AppealDetail
-                appeal={selectedAppeal}
-                reviewForm={reviewForm}
-                setReviewForm={setReviewForm}
-                reviewState={reviewState}
-                onReview={(e) => void handleReview(e)}
-                onClose={closeReview}
-              />
-            ) : null}
-          </div>
+      {/* KPI Cards */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <KpiUnderReview stats={summary.underReview} />
+        <KpiThisMonth stats={summary.thisMonth} />
+        <KpiCorrectionRate stats={summary.correctionRate} />
+      </div>
+
+      {/* Appeal list */}
+      {appeals.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center text-sm text-slate-400">
+          審査対象の申立てはありません
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {appeals.map((appeal) => (
+            <AppealCard
+              key={appeal.id}
+              appeal={appeal}
+              actionLoading={actionLoading}
+              actionErrors={actionErrors}
+              onAction={handleAction}
+            />
+          ))}
         </div>
       )}
     </main>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PageHeader
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PageHeader({
+  pendingCount,
+  urgentCount,
+}: {
+  readonly pendingCount: number
+  readonly urgentCount: number
+}): ReactElement {
+  return (
+    <header className="mb-8 flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-semibold tracking-[0.3em] text-rose-600 uppercase">Appeals</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">異議申立て</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          審査対象{' '}
+          <span className="font-semibold text-slate-900 tabular-nums">{pendingCount}</span>{' '}
+          件・うち期限3日以内{' '}
+          <span className="font-semibold text-rose-600 tabular-nums">{urgentCount}</span> 件
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          絞り込み ▾
+        </button>
+        <button
+          type="button"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          履歴を出力
+        </button>
+      </div>
+    </header>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KPI Cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+function KpiUnderReview({ stats }: { readonly stats: UnderReviewStats }): ReactElement {
+  return (
+    <div className="rounded-2xl border border-rose-100 bg-rose-50 p-5 shadow-sm">
+      <p className="text-xs font-semibold tracking-wider text-rose-500 uppercase">審査中</p>
+      <p className="mt-2 text-4xl font-bold text-rose-700 tabular-nums">{stats.count}</p>
+      <p className="mt-1 text-xs text-rose-500">平均 {stats.avgDays.toFixed(1)} 日</p>
+      {stats.nearDeadlineCount > 0 && (
+        <span className="mt-3 inline-flex items-center rounded-full bg-rose-200 px-2.5 py-0.5 text-xs font-semibold text-rose-800">
+          {stats.nearDeadlineCount}件 期限近
+        </span>
+      )}
+    </div>
+  )
+}
+
+function KpiThisMonth({ stats }: { readonly stats: ThisMonthStats }): ReactElement {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">今月完了</p>
+      <p className="mt-2 text-4xl font-bold text-slate-900 tabular-nums">{stats.count}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        是正 {stats.correctedCount} / 却下 {stats.rejectedCount} / 平均 {stats.avgDays.toFixed(1)}{' '}
+        日
+      </p>
+    </div>
+  )
+}
+
+function KpiCorrectionRate({ stats }: { readonly stats: CorrectionRateStats }): ReactElement {
+  const diffPositive = stats.diffPt >= 0
+  return (
+    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+      <p className="text-xs font-semibold tracking-wider text-emerald-600 uppercase">是正率</p>
+      <p className="mt-2 text-4xl font-bold text-emerald-700 tabular-nums">{stats.percent}%</p>
+      <p className="mt-1 text-xs text-emerald-600">
+        昨期 {stats.lastPeriodPercent}%{' '}
+        <span
+          className={
+            diffPositive ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-600'
+          }
+        >
+          ({diffSign(stats.diffPt)} pt)
+        </span>
+      </p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AppealCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AppealCardProps {
+  readonly appeal: Appeal
+  readonly actionLoading: ReadonlySet<string>
+  readonly actionErrors: ReadonlyMap<string, string>
+  readonly onAction: (id: string, kind: ActionKind) => Promise<void>
+}
+
+function AppealCard({
+  appeal,
+  actionLoading,
+  actionErrors,
+  onAction,
+}: AppealCardProps): ReactElement {
+  const supplementKey = `${appeal.id}-supplement`
+  const rejectKey = `${appeal.id}-reject`
+  const proceedKey = `${appeal.id}-proceed`
+
+  const supplementError = actionErrors.get(supplementKey)
+  const rejectError = actionErrors.get(rejectKey)
+  const proceedError = actionErrors.get(proceedKey)
+  const anyError = supplementError ?? rejectError ?? proceedError
+
+  const isSupplementLoading = actionLoading.has(supplementKey)
+  const isRejectLoading = actionLoading.has(rejectKey)
+  const isProceedLoading = actionLoading.has(proceedKey)
+  const anyLoading = isSupplementLoading || isRejectLoading || isProceedLoading
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex gap-6">
+        {/* Main content */}
+        <div className="min-w-0 flex-1">
+          {/* Top row: appeal no + deadline badge + type tag */}
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs font-semibold text-slate-400">
+              {appeal.appealNo}
+            </span>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${deadlineBadgeClass(appeal.deadlineDaysLeft)}`}
+            >
+              残 {appeal.deadlineDaysLeft} 日
+            </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+              {appeal.appealType}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h2 className="mb-1.5 text-base font-semibold text-slate-900">{appeal.title}</h2>
+
+          {/* Content */}
+          <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-slate-600">
+            {appeal.content}
+          </p>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={anyLoading}
+              onClick={() => void onAction(appeal.id, 'supplement')}
+              className="rounded-lg border border-slate-300 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {isSupplementLoading ? '送信中…' : '補足を依頼'}
+            </button>
+            <button
+              type="button"
+              disabled={anyLoading}
+              onClick={() => void onAction(appeal.id, 'reject')}
+              className="rounded-lg border border-rose-200 px-3.5 py-1.5 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+            >
+              {isRejectLoading ? '処理中…' : '却下'}
+            </button>
+            <button
+              type="button"
+              disabled={anyLoading}
+              onClick={() => void onAction(appeal.id, 'proceed')}
+              className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isProceedLoading ? '処理中…' : '是正に進む'}
+            </button>
+          </div>
+
+          {anyError && <p className="mt-2 text-xs text-rose-600">{anyError}</p>}
+        </div>
+
+        {/* Right: submitter info */}
+        <div className="flex shrink-0 flex-col items-center gap-1.5 pl-4 text-center">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white ${avatarColor(appeal.id)}`}
+          >
+            {getInitials(appeal.submitterName)}
+          </div>
+          <p className="text-xs font-semibold text-slate-800">{appeal.submitterName}</p>
+          <p className="font-mono text-[10px] text-slate-400">{appeal.submitterEmployeeNo}</p>
+          <p className="text-[10px] text-slate-400">{formatDate(appeal.submittedAt)}</p>
+        </div>
+      </div>
+    </div>
   )
 }
