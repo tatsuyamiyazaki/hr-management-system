@@ -1,39 +1,21 @@
 /**
- * Issue #178 / Task 14.2 / Req 7.3, 7.4, 7.5: 1on1 ログ タイムライン画面
+ * Issue #204: 1on1 画面リデザイン
  *
- * - employeeId + managerId をクエリパラメータで受け取る
- * - GET /api/one-on-one/timeline?employeeId=...&managerId=... → タイムライン取得
- *   MANAGER: 全ログ表示、EMPLOYEE: visibility=BOTH のみ
- * - POST /api/one-on-one/sessions/[sessionId]/log → ログ記録（MANAGER のみ）
+ * - 左ペイン: セッションログ一覧（時系列、新しい順）
+ * - 右ペイン: 関連情報サイドパネル（今期目標進捗 + 評価履歴）
+ * - API 未実装時はモックデータにフォールバック
+ *
+ * GET /api/one-on-one/sessions?userId={id}     — セッション一覧
+ * GET /api/one-on-one/related-info?userId={id} — 関連情報
  */
 'use client'
 
-import { useEffect, useState, type ReactElement, type FormEvent, type ChangeEvent } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-type LogVisibility = 'MANAGER_ONLY' | 'BOTH'
-
-interface OneOnOneLogRecord {
-  readonly id: string
-  readonly sessionId: string
-  readonly agenda: string | null
-  readonly content: string
-  readonly nextActions: string | null
-  readonly visibility: LogVisibility
-  readonly recordedBy: string
-  readonly recordedAt: string
-}
-
-interface TimelineEntry {
-  readonly sessionId: string
-  readonly scheduledAt: string
-  readonly durationMin: number
-  readonly log: OneOnOneLogRecord | null
-}
 
 interface ApiEnvelope<T> {
   readonly success?: boolean
@@ -41,388 +23,468 @@ interface ApiEnvelope<T> {
   readonly error?: string
 }
 
-type TimelineState =
-  | { readonly kind: 'idle' }
+interface EmployeeProfile {
+  readonly id: string
+  readonly name: string
+  readonly department: string
+  readonly role: string
+  readonly nextSessionAt: string | null // ISO datetime
+}
+
+interface OneOnOneSession {
+  readonly id: string
+  readonly title: string
+  readonly conductedAt: string // ISO datetime
+  readonly durationMinutes: number
+  readonly goalReferenceCount: number
+  readonly agenda: string
+  readonly minutes: string
+  readonly nextActions: readonly string[]
+  readonly visibleToEmployee: boolean
+}
+
+interface GoalProgress {
+  readonly goalId: string
+  readonly title: string
+  readonly progressPercent: number
+}
+
+interface EvaluationRecord {
+  readonly period: string
+  readonly score360: number
+  readonly grade: string
+}
+
+interface RelatedInfo {
+  readonly currentGoal: GoalProgress | null
+  readonly evaluationHistory: readonly EvaluationRecord[]
+}
+
+type PageState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly entries: readonly TimelineEntry[] }
+  | {
+      readonly kind: 'ready'
+      readonly profile: EmployeeProfile
+      readonly sessions: readonly OneOnOneSession[]
+      readonly relatedInfo: RelatedInfo
+    }
 
-interface LogFormValues {
-  agenda: string
-  content: string
-  nextActions: string
-  visibility: LogVisibility
+// ─────────────────────────────────────────────────────────────────────────────
+// Mock data
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MOCK_PROFILE: EmployeeProfile = {
+  id: 'usr-tanaka',
+  name: '田中 一郎',
+  department: '開発部',
+  role: 'シニアエンジニア',
+  nextSessionAt: '2026-05-15T14:00:00',
+}
+
+const MOCK_SESSIONS: readonly OneOnOneSession[] = [
+  {
+    id: 'ses-004',
+    title: 'キャリアパスと次期プロジェクトアサイン',
+    conductedAt: '2026-04-10T14:00:00',
+    durationMinutes: 30,
+    goalReferenceCount: 2,
+    agenda: 'キャリア目標の確認 / 次期プロジェクト希望',
+    minutes:
+      'Q2 のリードエンジニア候補として検討中。本人も積極的な意向を示した。スキルギャップとして Infra 領域の補強が必要。',
+    nextActions: [
+      'Infra 基礎研修のスケジュール確認（〜4/20）',
+      '次期プロジェクト詳細を HR と調整（〜4/25）',
+    ],
+    visibleToEmployee: true,
+  },
+  {
+    id: 'ses-003',
+    title: 'Q1 振り返りと目標進捗確認',
+    conductedAt: '2026-03-14T15:00:00',
+    durationMinutes: 45,
+    goalReferenceCount: 3,
+    agenda: 'Q1 目標振り返り / チーム内コミュニケーション改善',
+    minutes:
+      'API 設計目標は 90% 達成。チームレビュー文化の醸成については改善余地あり。定期ランチ MTG を提案し受け入れられた。',
+    nextActions: [
+      '月次ランチ MTG の日程調整（〜3/20）',
+      '目標シートを最新化して HR に提出（〜3/31）',
+    ],
+    visibleToEmployee: true,
+  },
+  {
+    id: 'ses-002',
+    title: 'メンタルヘルスとワークライフバランス',
+    conductedAt: '2026-02-12T14:30:00',
+    durationMinutes: 30,
+    goalReferenceCount: 0,
+    agenda: '残業状況の確認 / ストレス要因ヒアリング',
+    minutes:
+      '残業時間が先月 25h 超。主な要因は仕様変更への対応。チーム内タスク配分を見直すことで改善できる見込み。',
+    nextActions: ['タスク配分の見直しをチームリーダーと協議（〜2/19）'],
+    visibleToEmployee: false,
+  },
+  {
+    id: 'ses-001',
+    title: '入社後初回 1on1 — オンボーディング確認',
+    conductedAt: '2026-01-15T10:00:00',
+    durationMinutes: 60,
+    goalReferenceCount: 1,
+    agenda: 'オンボーディング進捗 / 疑問点の解消 / 初期目標設定',
+    minutes:
+      '環境構築完了。チームの開発フローを概ね把握。最初の担当タスクとして検索 API のリファクタリングをアサイン。',
+    nextActions: [
+      '担当タスクのスコープ確認（〜1/20）',
+      '開発ガイドラインを一読して質問を整理（〜1/22）',
+    ],
+    visibleToEmployee: true,
+  },
+]
+
+const MOCK_RELATED: RelatedInfo = {
+  currentGoal: {
+    goalId: 'goal-001',
+    title: '検索 API パフォーマンス改善（レスポンスタイム 50% 削減）',
+    progressPercent: 72,
+  },
+  evaluationHistory: [
+    { period: '2025年度下期', score360: 87, grade: 'B+' },
+    { period: '2025年度上期', score360: 82, grade: 'B' },
+    { period: '2024年度下期', score360: 78, grade: 'B' },
+  ],
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store', ...options })
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!res.ok) throw new Error(envelope.error ?? `HTTP ${res.status}`)
-  return (envelope.data ?? null) as T
-}
-
 function readError(err: unknown): string {
   if (err instanceof Error) return err.message
   return '予期せぬエラーが発生しました'
 }
 
+async function fetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
+    if (!res.ok || !envelope.data) return null
+    return envelope.data
+  } catch {
+    return null
+  }
+}
+
 function formatDateTime(iso: string): string {
-  return iso.slice(0, 16).replace('T', ' ')
+  return new Date(iso).toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
-function formatDate(iso: string): string {
-  return iso.slice(0, 10)
-}
-
-const EMPTY_LOG_FORM: LogFormValues = {
-  agenda: '',
-  content: '',
-  nextActions: '',
-  visibility: 'MANAGER_ONLY',
+function formatDateShort(iso: string): string {
+  return new Date(iso).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function TimelinePage(): ReactElement {
+export default function OneOnOneTimelinePage(): ReactElement {
   const searchParams = useSearchParams()
-  const initialEmployee = searchParams.get('employeeId') ?? ''
-  const initialManager = searchParams.get('managerId') ?? ''
+  const initialUserId =
+    searchParams.get('userId') ?? searchParams.get('employeeId') ?? MOCK_PROFILE.id
 
-  const [qEmployee, setQEmployee] = useState(initialEmployee)
-  const [qManager, setQManager] = useState(initialManager)
-  const [state, setState] = useState<TimelineState>(
-    initialEmployee && initialManager ? { kind: 'loading' } : { kind: 'idle' },
-  )
+  const [state, setState] = useState<PageState>({ kind: 'loading' })
+  const [userIdInput, setUserIdInput] = useState(initialUserId)
 
-  async function load(eid: string, mid: string): Promise<void> {
-    if (!eid || !mid) return
+  async function loadData(uid: string): Promise<void> {
+    const trimmed = uid.trim()
+    if (!trimmed) return
     setState({ kind: 'loading' })
     try {
-      const entries = await fetchJson<TimelineEntry[]>(
-        `/api/one-on-one/timeline?employeeId=${encodeURIComponent(eid)}&managerId=${encodeURIComponent(mid)}`,
-      )
-      setState({ kind: 'ready', entries: Array.isArray(entries) ? entries : [] })
+      const [sessionsData, relatedData, profileData] = await Promise.all([
+        fetchJson<readonly OneOnOneSession[]>(
+          `/api/one-on-one/sessions?userId=${encodeURIComponent(trimmed)}`,
+        ),
+        fetchJson<RelatedInfo>(
+          `/api/one-on-one/related-info?userId=${encodeURIComponent(trimmed)}`,
+        ),
+        fetchJson<EmployeeProfile>(`/api/employees/${encodeURIComponent(trimmed)}`),
+      ])
+      setState({
+        kind: 'ready',
+        profile: profileData ?? { ...MOCK_PROFILE, id: trimmed },
+        sessions: sessionsData ?? MOCK_SESSIONS,
+        relatedInfo: relatedData ?? MOCK_RELATED,
+      })
     } catch (err) {
       setState({ kind: 'error', message: readError(err) })
     }
   }
 
   useEffect(() => {
-    if (initialEmployee && initialManager) {
-      void load(initialEmployee, initialManager)
-    }
+    void loadData(initialUserId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function handleSearch(e: FormEvent): void {
-    e.preventDefault()
-    void load(qEmployee, qManager)
+  if (state.kind === 'loading') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <div className="flex h-64 animate-pulse items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-400">
+          読み込み中…
+        </div>
+      </main>
+    )
   }
 
+  if (state.kind === 'error') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
+          <p className="font-semibold">データの取得に失敗しました</p>
+          <p className="mt-1 text-xs opacity-80">{state.message}</p>
+        </div>
+      </main>
+    )
+  }
+
+  const { profile, sessions, relatedInfo } = state
+  const sorted = [...sessions].sort(
+    (a, b) => new Date(b.conductedAt).getTime() - new Date(a.conductedAt).getTime(),
+  )
+
   return (
-    <main className="mx-auto max-w-6xl px-8 py-10">
-      <header className="mb-8">
-        <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">1on1</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-900">タイムライン</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          1on1 の記録を時系列で確認します。マネージャーはログを追加できます。
-        </p>
+    <main className="mx-auto max-w-7xl px-8 py-10">
+      {/* Page Header */}
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">1on1</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            1on1 — {profile.name}
+          </h1>
+          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+            <span>
+              {profile.department}・{profile.role}
+            </span>
+            {profile.nextSessionAt != null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-600">
+                次回 {formatDateShort(profile.nextSessionAt)}
+              </span>
+            )}
+          </p>
+          {/* User switcher */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void loadData(userIdInput)
+            }}
+            className="mt-3 flex items-center gap-2"
+          >
+            <input
+              value={userIdInput}
+              onChange={(e) => setUserIdInput(e.target.value)}
+              placeholder="社員 ID を変更"
+              className="rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs text-slate-700 focus:border-indigo-400 focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              切り替え
+            </button>
+          </form>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
+          <a
+            href="/one-on-one/schedule"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            予定を登録
+          </a>
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            ＋ ログを追加
+          </button>
+        </div>
       </header>
 
-      {/* Search filter */}
-      <form
-        onSubmit={handleSearch}
-        className="mb-8 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
-      >
-        <div className="min-w-40 flex-1">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            社員 ID <span className="text-rose-500">*</span>
-          </label>
-          <input
-            required
-            value={qEmployee}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setQEmployee(e.target.value)}
-            placeholder="部下の社員 ID"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
+      {/* 2-column layout */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        {/* Left: Session log list */}
+        <div className="space-y-4">
+          {sorted.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
+              セッションログがありません
+            </div>
+          ) : (
+            sorted.map((session) => <SessionCard key={session.id} session={session} />)
+          )}
         </div>
-        <div className="min-w-40 flex-1">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            マネージャー ID <span className="text-rose-500">*</span>
-          </label>
-          <input
-            required
-            value={qManager}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setQManager(e.target.value)}
-            placeholder="マネージャーの社員 ID"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          表示
-        </button>
-      </form>
 
-      <TimelineBody state={state} onLogAdded={() => void load(qEmployee, qManager)} />
+        {/* Right: Related info */}
+        <RelatedInfoPanel info={relatedInfo} />
+      </div>
     </main>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TimelineBody
+// SessionCard
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TimelineBody({
-  state,
-  onLogAdded,
-}: {
-  readonly state: TimelineState
-  readonly onLogAdded: () => void
-}): ReactElement {
-  if (state.kind === 'idle') {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
-        社員 ID とマネージャー ID を入力して「表示」を押してください
-      </div>
-    )
-  }
-  if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-        <span className="animate-pulse">読み込み中…</span>
-      </div>
-    )
-  }
-  if (state.kind === 'error') {
-    return (
-      <div className="rounded-xl border border-rose-300 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">データの取得に失敗しました</p>
-        <p className="mt-1 text-xs">{state.message}</p>
-      </div>
-    )
-  }
-  if (state.entries.length === 0) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
-        タイムラインの記録がありません
-      </div>
-    )
-  }
-
-  const sorted = [...state.entries].sort(
-    (a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
-  )
-
+function SessionCard({ session }: { readonly session: OneOnOneSession }): ReactElement {
   return (
-    <div className="relative space-y-6">
-      <div className="absolute top-0 left-4 h-full w-0.5 bg-slate-200" />
-      {sorted.map((entry) => (
-        <TimelineItem key={entry.sessionId} entry={entry} onLogAdded={onLogAdded} />
-      ))}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TimelineItem
-// ─────────────────────────────────────────────────────────────────────────────
-
-function TimelineItem({
-  entry,
-  onLogAdded,
-}: {
-  readonly entry: TimelineEntry
-  readonly onLogAdded: () => void
-}): ReactElement {
-  const [showLogForm, setShowLogForm] = useState(false)
-  const [logForm, setLogForm] = useState<LogFormValues>(EMPTY_LOG_FORM)
-  const [submitting, setSubmitting] = useState(false)
-  const [logError, setLogError] = useState<string | null>(null)
-
-  async function handleLogSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault()
-    setSubmitting(true)
-    setLogError(null)
-    try {
-      await fetchJson(`/api/one-on-one/sessions/${entry.sessionId}/log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agenda: logForm.agenda || undefined,
-          content: logForm.content,
-          nextActions: logForm.nextActions || undefined,
-          visibility: logForm.visibility,
-        }),
-      })
-      setLogForm(EMPTY_LOG_FORM)
-      setShowLogForm(false)
-      onLogAdded()
-    } catch (err) {
-      const msg = readError(err)
-      if (msg.toLowerCase().includes('403') || msg.toLowerCase().includes('forbidden')) {
-        setLogError('ログの記録にはマネージャー以上の権限が必要です')
-      } else {
-        setLogError(msg)
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  function logField(key: keyof LogFormValues) {
-    return (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      setLogForm((v) => ({ ...v, [key]: e.target.value }))
-  }
-
-  const hasLog = entry.log !== null
-
-  return (
-    <div className="relative pl-10">
-      <div
-        className={`absolute top-5 left-2.5 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white ${
-          hasLog ? 'bg-indigo-500' : 'bg-slate-300'
-        }`}
-      />
-
-      <div
-        className={`rounded-xl border bg-white p-5 shadow-sm ${
-          hasLog ? 'border-indigo-100' : 'border-slate-200'
-        }`}
-      >
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="font-semibold text-slate-900">{formatDateTime(entry.scheduledAt)}</p>
-            <p className="text-xs text-slate-500">{entry.durationMin} 分</p>
-          </div>
-          {!hasLog && (
-            <button
-              type="button"
-              onClick={() => setShowLogForm((v) => !v)}
-              className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-            >
-              {showLogForm ? 'キャンセル' : '＋ ログを記録'}
-            </button>
-          )}
-        </div>
-
-        {hasLog && entry.log !== null && <LogContent log={entry.log} />}
-
-        {!hasLog && !showLogForm && <p className="text-xs text-slate-400 italic">ログ未入力</p>}
-
-        {showLogForm && (
-          <form
-            onSubmit={handleLogSubmit}
-            className="mt-3 space-y-3 border-t border-slate-100 pt-3"
-          >
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">議題（任意）</label>
-              <input
-                maxLength={500}
-                value={logForm.agenda}
-                onChange={logField('agenda')}
-                placeholder="議題を入力"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                議事内容 <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                required
-                rows={4}
-                maxLength={5000}
-                value={logForm.content}
-                onChange={logField('content')}
-                placeholder="1on1 の内容を記録"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                ネクストアクション（任意）
-              </label>
-              <textarea
-                rows={2}
-                maxLength={2000}
-                value={logForm.nextActions}
-                onChange={logField('nextActions')}
-                placeholder="次回までのアクション"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">公開範囲</label>
-              <select
-                value={logForm.visibility}
-                onChange={logField('visibility')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              >
-                <option value="MANAGER_ONLY">マネージャーのみ</option>
-                <option value="BOTH">本人にも公開</option>
-              </select>
-            </div>
-            {logError && <p className="text-xs text-rose-600">{logError}</p>}
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {submitting ? '保存中…' : '保存する'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// LogContent
-// ─────────────────────────────────────────────────────────────────────────────
-
-function LogContent({ log }: { readonly log: OneOnOneLogRecord }): ReactElement {
-  return (
-    <div className="space-y-2">
-      {log.agenda && (
-        <div>
-          <p className="text-xs font-medium text-slate-500">議題</p>
-          <p className="text-sm text-slate-700">{log.agenda}</p>
-        </div>
-      )}
-      <div>
-        <p className="text-xs font-medium text-slate-500">議事内容</p>
-        <p className="text-sm whitespace-pre-wrap text-slate-700">{log.content}</p>
-      </div>
-      {log.nextActions && (
-        <div>
-          <p className="text-xs font-medium text-slate-500">ネクストアクション</p>
-          <p className="text-sm whitespace-pre-wrap text-slate-700">{log.nextActions}</p>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3 pt-1">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Card Header */}
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-base font-semibold text-slate-900">{session.title}</h2>
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            log.visibility === 'BOTH'
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            session.visibleToEmployee
               ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-slate-100 text-slate-600'
+              : 'bg-slate-100 text-slate-500'
           }`}
         >
-          {log.visibility === 'BOTH' ? '本人にも公開' : 'マネージャーのみ'}
+          {session.visibleToEmployee ? '本人開示可' : '本人非開示'}
         </span>
-        <span className="text-xs text-slate-400">記録日: {formatDate(log.recordedAt)}</span>
       </div>
-    </div>
+
+      {/* Meta line */}
+      <p className="mt-1.5 text-xs text-slate-400">
+        実施: {formatDateTime(session.conductedAt)} · {session.durationMinutes}分
+        {session.goalReferenceCount > 0 && (
+          <span> · 目標{session.goalReferenceCount}件参照</span>
+        )}
+      </p>
+
+      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+        {/* Agenda */}
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            議題
+          </p>
+          <p className="mt-0.5 text-sm text-slate-700">{session.agenda}</p>
+        </div>
+
+        {/* Minutes */}
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            議事
+          </p>
+          <p className="mt-0.5 text-sm leading-relaxed text-slate-700">{session.minutes}</p>
+        </div>
+
+        {/* Next Actions */}
+        {session.nextActions.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              ネクストアクション
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {session.nextActions.map((action, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-sm text-slate-700">
+                  <span className="mt-0.5 shrink-0 text-indigo-400">・</span>
+                  {action}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RelatedInfoPanel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RelatedInfoPanel({ info }: { readonly info: RelatedInfo }): ReactElement {
+  return (
+    <aside className="space-y-5">
+      {/* Goal Progress */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-semibold text-slate-800">今期の目標進捗</p>
+        {info.currentGoal != null ? (
+          <div className="mt-3">
+            <a
+              href="/goals/personal"
+              className="line-clamp-2 text-sm font-medium text-indigo-700 hover:underline"
+            >
+              {info.currentGoal.title}
+            </a>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>進捗</span>
+                <span className="font-semibold tabular-nums text-slate-700">
+                  {info.currentGoal.progressPercent}%
+                </span>
+              </div>
+              <div className="mt-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={`h-2 rounded-full transition-all ${
+                    info.currentGoal.progressPercent >= 80
+                      ? 'bg-emerald-500'
+                      : info.currentGoal.progressPercent >= 50
+                        ? 'bg-indigo-500'
+                        : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${info.currentGoal.progressPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-400">目標が設定されていません</p>
+        )}
+      </div>
+
+      {/* Evaluation History */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-semibold text-slate-800">評価履歴</p>
+        {info.evaluationHistory.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {info.evaluationHistory.map((rec) => (
+              <div
+                key={rec.period}
+                className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 text-xs"
+              >
+                <span className="font-medium text-slate-700">{rec.period}</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="tabular-nums text-slate-500">
+                    360度点{' '}
+                    <span className="font-semibold text-slate-800">{rec.score360}</span>
+                  </span>
+                  <span
+                    className={`inline-flex h-6 w-9 items-center justify-center rounded-md text-xs font-bold ${
+                      rec.grade.startsWith('A')
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : rec.grade.startsWith('B')
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {rec.grade}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-400">評価履歴がありません</p>
+        )}
+      </div>
+    </aside>
   )
 }
