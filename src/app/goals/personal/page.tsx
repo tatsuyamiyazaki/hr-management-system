@@ -1,543 +1,489 @@
-/**
- * Issue #177 / Task 13.2 / Req 6.3, 6.4, 6.5: 個人目標登録・上長承認画面
- *
- * - 全ロールアクセス可能（自分の目標）
- * - GET  /api/goals/personal              → 自分の目標一覧
- * - POST /api/goals/personal              → 目標新規作成
- * - POST /api/goals/personal/[id]/submit  → DRAFT→PENDING_APPROVAL
- * - POST /api/goals/personal/[id]/approve → PENDING_APPROVAL→APPROVED (MANAGER+)
- * - POST /api/goals/personal/[id]/reject  → PENDING_APPROVAL→REJECTED (MANAGER+)
- */
 'use client'
 
-import { useEffect, useState, type ReactElement, type FormEvent, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type GoalType = 'OKR' | 'MBO'
-type GoalStatus =
-  | 'DRAFT'
-  | 'PENDING_APPROVAL'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
+type GoalStatus = 'pending' | 'in_progress' | 'completed' | 'rejected'
 
-interface PersonalGoal {
+interface Goal {
   readonly id: string
   readonly title: string
-  readonly description: string | null
-  readonly goalType: GoalType
-  readonly keyResult: string | null
-  readonly targetValue: number | null
-  readonly unit: string | null
+  readonly type: 'OKR' | 'MBO'
+  readonly weight: number
   readonly status: GoalStatus
-  readonly parentOrgGoalId: string | null
-  readonly startDate: string
-  readonly endDate: string
-  readonly rejectedReason: string | null
+  readonly progressPercent: number
+  readonly dueDate: string
+  readonly completedAt: string | null
+  readonly keyResults: readonly string[]
 }
 
-interface ApiEnvelope<T> {
-  readonly success?: boolean
-  readonly data?: T
-  readonly error?: string
+interface PendingApproval {
+  readonly goalId: string
+  readonly approverName: string
+  readonly approverRole: string
+  readonly notifiedAt: string
+  readonly parentGoalName: string
+  readonly parentGoalPath: readonly string[]
+  readonly aiAdvice: string
+  readonly aiModel: string
 }
 
 type PageState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly goals: readonly PersonalGoal[] }
+  | { readonly kind: 'ready'; readonly goals: readonly Goal[]; readonly pendingApproval: PendingApproval | null }
 
-interface FormValues {
-  title: string
-  description: string
-  goalType: GoalType
-  keyResult: string
-  targetValue: string
-  unit: string
-  parentOrgGoalId: string
-  startDate: string
-  endDate: string
+// ─── Mock data ────────────────────────────────────────────────────────────────
+
+const MOCK_GOALS: readonly Goal[] = [
+  {
+    id: 'g1',
+    title: '顧客満足度スコアを Q2 末までに 85 点以上に向上させる',
+    type: 'OKR',
+    weight: 40,
+    status: 'pending',
+    progressPercent: 0,
+    dueDate: '2026-06-30',
+    completedAt: null,
+    keyResults: [
+      'NPS を現状 72 → 85 点に改善',
+      'サポート対応時間を平均 24h → 12h に短縮',
+      'リピート率を 68% → 78% に向上',
+    ],
+  },
+  {
+    id: 'g2',
+    title: '新規顧客獲得数を Q1 比 20% 増加させる',
+    type: 'MBO',
+    weight: 30,
+    status: 'in_progress',
+    progressPercent: 45,
+    dueDate: '2026-06-30',
+    completedAt: null,
+    keyResults: [],
+  },
+  {
+    id: 'g3',
+    title: 'プロダクト知識習得：認定資格を 2 つ取得する',
+    type: 'MBO',
+    weight: 20,
+    status: 'in_progress',
+    progressPercent: 60,
+    dueDate: '2026-05-31',
+    completedAt: null,
+    keyResults: [],
+  },
+  {
+    id: 'g4',
+    title: 'チームオンボーディングガイドを整備・公開する',
+    type: 'OKR',
+    weight: 10,
+    status: 'completed',
+    progressPercent: 100,
+    dueDate: '2026-04-15',
+    completedAt: '2026-04-12',
+    keyResults: [
+      'ガイドドキュメント（10 章）を作成・レビュー完了',
+      '新入社員 3 名がガイドを使用し評価 4.5/5 を取得',
+    ],
+  },
+]
+
+const MOCK_PENDING: PendingApproval = {
+  goalId: 'g1',
+  approverName: '田中 誠',
+  approverRole: 'マネージャー',
+  notifiedAt: '2026-04-22T10:30:00',
+  parentGoalName: '2026年度上期 部門 OKR — 顧客体験の抜本的改善',
+  parentGoalPath: ['全社目標', '営業部門', '2026上期 OKR'],
+  aiAdvice:
+    'この目標は部門 OKR との整合性が高く、具体的な KR が設定されています。達成指標は測定可能であり、承認を推奨します。進捗管理のため月次チェックインの設定もご検討ください。',
+  aiModel: 'Claude 3.5 Sonnet',
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PERSONAL_URL = '/api/goals/personal'
-
-const STATUS_LABELS: Record<GoalStatus, string> = {
-  DRAFT: '下書き',
-  PENDING_APPROVAL: '承認待ち',
-  APPROVED: '承認済',
-  REJECTED: '差戻し',
-  IN_PROGRESS: '進行中',
-  COMPLETED: '完了',
-}
-
-const STATUS_COLORS: Record<GoalStatus, string> = {
-  DRAFT: 'bg-slate-100 text-slate-600',
-  PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-rose-100 text-rose-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-indigo-100 text-indigo-700',
-}
-
-const EMPTY_FORM: FormValues = {
-  title: '',
-  description: '',
-  goalType: 'OKR',
-  keyResult: '',
-  targetValue: '',
-  unit: '',
-  parentOrgGoalId: '',
-  startDate: '',
-  endDate: '',
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store', ...options })
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!res.ok) throw new Error(envelope.error ?? `HTTP ${res.status}`)
-  return (envelope.data ?? null) as T
-}
-
-function readError(err: unknown): string {
-  if (err instanceof Error) return err.message
-  return '予期せぬエラーが発生しました'
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function PersonalGoalPage(): ReactElement {
-  const [state, setState] = useState<PageState>({ kind: 'loading' })
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState<FormValues>(EMPTY_FORM)
-  const [submitting, setSubmitting] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  async function loadGoals(): Promise<void> {
-    setState({ kind: 'loading' })
-    try {
-      const goals = await fetchJson<PersonalGoal[]>(PERSONAL_URL)
-      setState({ kind: 'ready', goals: Array.isArray(goals) ? goals : [] })
-    } catch (err) {
-      setState({ kind: 'error', message: readError(err) })
-    }
+async function fetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
   }
-
-  useEffect(() => {
-    void loadGoals()
-  }, [])
-
-  async function handleCreate(e: FormEvent): Promise<void> {
-    e.preventDefault()
-    setSubmitting(true)
-    setActionError(null)
-    try {
-      await fetchJson(PERSONAL_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description || undefined,
-          goalType: form.goalType,
-          keyResult: form.keyResult || undefined,
-          targetValue: form.targetValue ? Number(form.targetValue) : undefined,
-          unit: form.unit || undefined,
-          parentOrgGoalId: form.parentOrgGoalId || undefined,
-          startDate: form.startDate,
-          endDate: form.endDate,
-        }),
-      })
-      setForm(EMPTY_FORM)
-      setShowForm(false)
-      await loadGoals()
-    } catch (err) {
-      setActionError(readError(err))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleAction(
-    goalId: string,
-    action: 'submit' | 'approve' | 'reject',
-  ): Promise<void> {
-    setActionError(null)
-    try {
-      await fetchJson(`${PERSONAL_URL}/${goalId}/${action}`, { method: 'POST' })
-      await loadGoals()
-    } catch (err) {
-      setActionError(readError(err))
-    }
-  }
-
-  const goals = state.kind === 'ready' ? state.goals : []
-  const inProgressCount = goals.filter((g) => g.status === 'IN_PROGRESS').length
-  const pendingCount = goals.filter((g) => g.status === 'PENDING_APPROVAL').length
-  const approvedCount = goals.filter(
-    (g) => g.status === 'APPROVED' || g.status === 'IN_PROGRESS' || g.status === 'COMPLETED',
-  ).length
-
-  return (
-    <main className="mx-auto max-w-6xl px-8 py-10">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">Goals</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">個人目標</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            目標の登録・申請・承認を行います。
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-        >
-          {showForm ? 'キャンセル' : '＋ 目標を追加'}
-        </button>
-      </header>
-
-      {/* KPI Summary */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">目標数</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{goals.length}</p>
-          <p className="mt-1 text-xs text-slate-500">登録済みの目標合計</p>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-indigo-500 uppercase">進行中</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-indigo-700">{inProgressCount}</p>
-          <p className="mt-1 text-xs text-indigo-500">承認済み {approvedCount}件</p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-amber-600 uppercase">承認待ち</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-amber-700">{pendingCount}</p>
-          <p className="mt-1 text-xs text-amber-600">上長承認を待っている目標</p>
-        </div>
-      </div>
-
-      {actionError && (
-        <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
-          {actionError}
-        </div>
-      )}
-
-      {showForm && (
-        <GoalForm form={form} onChange={setForm} onSubmit={handleCreate} submitting={submitting} />
-      )}
-
-      <GoalList state={state} onAction={handleAction} />
-    </main>
-  )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GoalForm
-// ─────────────────────────────────────────────────────────────────────────────
-
-function GoalForm({
-  form,
-  onChange,
-  onSubmit,
-  submitting,
-}: {
-  readonly form: FormValues
-  readonly onChange: (v: FormValues) => void
-  readonly onSubmit: (e: FormEvent) => void
-  readonly submitting: boolean
-}): ReactElement {
-  function field(key: keyof FormValues) {
-    return (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      onChange({ ...form, [key]: e.target.value })
+function statusOrder(status: GoalStatus): number {
+  const order: Record<GoalStatus, number> = {
+    pending: 0,
+    in_progress: 1,
+    completed: 2,
+    rejected: 3,
   }
-
-  return (
-    <form onSubmit={onSubmit} className="mb-8 rounded-xl border border-indigo-200 bg-indigo-50 p-6">
-      <h2 className="mb-4 font-semibold text-slate-800">新規目標登録</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            タイトル <span className="text-rose-500">*</span>
-          </label>
-          <input
-            required
-            maxLength={200}
-            value={form.title}
-            onChange={field('title')}
-            placeholder="目標タイトルを入力"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-slate-600">説明</label>
-          <textarea
-            rows={2}
-            value={form.description}
-            onChange={field('description')}
-            placeholder="目標の詳細・背景"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">目標タイプ</label>
-          <select
-            value={form.goalType}
-            onChange={field('goalType')}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          >
-            <option value="OKR">OKR</option>
-            <option value="MBO">MBO</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            {form.goalType === 'OKR' ? 'Key Result' : '目標値'}
-          </label>
-          {form.goalType === 'OKR' ? (
-            <input
-              value={form.keyResult}
-              onChange={field('keyResult')}
-              placeholder="成功指標を入力"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-            />
-          ) : (
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={0}
-                value={form.targetValue}
-                onChange={field('targetValue')}
-                placeholder="数値"
-                className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-              <input
-                value={form.unit}
-                onChange={field('unit')}
-                placeholder="単位"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            開始日 <span className="text-rose-500">*</span>
-          </label>
-          <input
-            required
-            type="date"
-            value={form.startDate}
-            onChange={field('startDate')}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            終了日 <span className="text-rose-500">*</span>
-          </label>
-          <input
-            required
-            type="date"
-            value={form.endDate}
-            onChange={field('endDate')}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            関連組織目標 ID（任意）
-          </label>
-          <input
-            value={form.parentOrgGoalId}
-            onChange={field('parentOrgGoalId')}
-            placeholder="組織目標IDを貼り付け"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      <div className="mt-4 flex justify-end">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {submitting ? '登録中…' : '登録する'}
-        </button>
-      </div>
-    </form>
-  )
+  return order[status]
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GoalList
-// ─────────────────────────────────────────────────────────────────────────────
-
-function GoalList({
-  state,
-  onAction,
-}: {
-  readonly state: PageState
-  readonly onAction: (goalId: string, action: 'submit' | 'approve' | 'reject') => void
-}): ReactElement {
-  if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-        <span className="animate-pulse">データを読み込み中…</span>
-      </div>
-    )
+function statusLabel(status: GoalStatus): string {
+  const labels: Record<GoalStatus, string> = {
+    pending: '承認待ち',
+    in_progress: '進行中',
+    completed: '完了',
+    rejected: '差し戻し',
   }
-  if (state.kind === 'error') {
-    return (
-      <div className="rounded-xl border border-rose-300 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">データの取得に失敗しました</p>
-        <p className="mt-1 text-xs">{state.message}</p>
-      </div>
-    )
-  }
-  if (state.goals.length === 0) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
-        目標が登録されていません
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      {state.goals.map((g) => (
-        <GoalCard key={g.id} goal={g} onAction={onAction} />
-      ))}
-    </div>
-  )
+  return labels[status]
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GoalCard
-// ─────────────────────────────────────────────────────────────────────────────
+function statusBadgeClass(status: GoalStatus): string {
+  const classes: Record<GoalStatus, string> = {
+    pending: 'bg-amber-100 text-amber-800',
+    in_progress: 'bg-indigo-100 text-indigo-800',
+    completed: 'bg-emerald-100 text-emerald-800',
+    rejected: 'bg-rose-100 text-rose-800',
+  }
+  return classes[status]
+}
+
+function progressBarColor(status: GoalStatus): string {
+  const colors: Record<GoalStatus, string> = {
+    completed: 'bg-emerald-500',
+    in_progress: 'bg-indigo-500',
+    pending: 'bg-amber-400',
+    rejected: 'bg-rose-400',
+  }
+  return colors[status]
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+}
+
+// ─── GoalCard ─────────────────────────────────────────────────────────────────
 
 function GoalCard({
   goal,
-  onAction,
+  isHighlighted,
+  onClick,
 }: {
-  readonly goal: PersonalGoal
-  readonly onAction: (goalId: string, action: 'submit' | 'approve' | 'reject') => void
-}): ReactElement {
+  readonly goal: Goal
+  readonly isHighlighted: boolean
+  readonly onClick: () => void
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[goal.status]}`}
-            >
-              {STATUS_LABELS[goal.status]}
-            </span>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                goal.goalType === 'OKR'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}
-            >
-              {goal.goalType}
-            </span>
-          </div>
-
-          <p className="mt-1 font-semibold text-slate-900">{goal.title}</p>
-
-          {goal.description && <p className="mt-0.5 text-xs text-slate-500">{goal.description}</p>}
-
-          {goal.keyResult && (
-            <p className="mt-1 text-xs text-slate-600">
-              <span className="font-medium">KR:</span> {goal.keyResult}
-            </p>
-          )}
-
-          {goal.targetValue !== null && (
-            <p className="mt-0.5 text-xs text-slate-500">
-              目標値: {goal.targetValue} {goal.unit ?? ''}
-            </p>
-          )}
-
-          {goal.rejectedReason && (
-            <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">
-              差戻し理由: {goal.rejectedReason}
-            </p>
-          )}
-
-          <p className="mt-1 text-xs text-slate-400">
-            {goal.startDate.slice(0, 10)} 〜 {goal.endDate.slice(0, 10)}
-          </p>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left rounded-xl border p-5 transition-all ${
+        isHighlighted
+          ? 'border-indigo-500 ring-2 ring-indigo-200 bg-white shadow-md'
+          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+      }`}
+    >
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(goal.status)}`}>
+            {statusLabel(goal.status)}
+          </span>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+            {goal.type}
+          </span>
+          <span className="text-xs text-gray-500">ウェイト {goal.weight}%</span>
         </div>
-
-        <ActionButtons goal={goal} onAction={onAction} />
+        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{goal.progressPercent}%</span>
       </div>
-    </div>
+
+      {/* Title */}
+      <p className="text-sm font-semibold text-gray-900 leading-snug mb-3">{goal.title}</p>
+
+      {/* Key Results */}
+      {goal.keyResults.length > 0 && (
+        <ul className="mb-3 space-y-1">
+          {goal.keyResults.map((kr, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+              <span className="mt-0.5 text-indigo-400 font-bold">KR{i + 1}</span>
+              <span>{kr}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Progress bar */}
+      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+        <div
+          className={`h-full rounded-full transition-all ${progressBarColor(goal.status)}`}
+          style={{ width: `${goal.progressPercent}%` }}
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between text-xs text-gray-400">
+        <span>期日 {formatDate(goal.dueDate)}</span>
+        {goal.completedAt && <span className="text-emerald-600">✓ {formatDate(goal.completedAt)} 完了</span>}
+      </div>
+    </button>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ActionButtons
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ApprovalPanel ────────────────────────────────────────────────────────────
 
-function ActionButtons({
-  goal,
-  onAction,
+function ApprovalPanel({
+  approval,
+  onApprove,
+  onReject,
 }: {
-  readonly goal: PersonalGoal
-  readonly onAction: (goalId: string, action: 'submit' | 'approve' | 'reject') => void
-}): ReactElement | null {
-  if (goal.status === 'DRAFT') {
-    return (
-      <button
-        type="button"
-        onClick={() => onAction(goal.id, 'submit')}
-        className="shrink-0 rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-      >
-        承認申請
-      </button>
-    )
-  }
+  readonly approval: PendingApproval
+  readonly onApprove: (goalId: string) => void
+  readonly onReject: (goalId: string) => void
+}) {
+  return (
+    <aside className="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-5">
+      <div className="flex items-center gap-2">
+        <span className="text-amber-600 text-lg">🕐</span>
+        <h3 className="text-sm font-bold text-amber-900">承認待ち</h3>
+      </div>
 
-  if (goal.status === 'PENDING_APPROVAL') {
+      {/* Approver block */}
+      <div className="bg-white rounded-lg border border-amber-100 p-4">
+        <p className="text-xs text-gray-500 mb-1">承認者</p>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs">
+            {approval.approverName.charAt(0)}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{approval.approverName}</p>
+            <p className="text-xs text-gray-500">{approval.approverRole}</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">申請日時 {formatDate(approval.notifiedAt)}</p>
+      </div>
+
+      {/* Parent goal */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-2">
+          <span className="text-gray-400">🔗</span>
+          <p className="text-xs font-medium text-gray-700">紐付き上位目標</p>
+        </div>
+        {/* Breadcrumb */}
+        <div className="flex flex-wrap items-center gap-1 text-xs text-gray-400 mb-2">
+          {approval.parentGoalPath.map((seg, i) => (
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <span>/</span>}
+              <span>{seg}</span>
+            </span>
+          ))}
+        </div>
+        <p className="text-xs font-medium text-gray-800 bg-white rounded border border-gray-200 px-3 py-2">
+          {approval.parentGoalName}
+        </p>
+      </div>
+
+      {/* AI Advice */}
+      <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <span className="text-indigo-500">✨</span>
+          <p className="text-xs font-semibold text-indigo-700">AI 承認アドバイス</p>
+          <span className="ml-auto text-xs text-indigo-400">{approval.aiModel}</span>
+        </div>
+        <p className="text-xs text-indigo-900 leading-relaxed">{approval.aiAdvice}</p>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex flex-col gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => onApprove(approval.goalId)}
+          className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+        >
+          ✓ 承認する
+        </button>
+        <button
+          type="button"
+          onClick={() => onReject(approval.goalId)}
+          className="w-full py-2.5 rounded-lg border border-rose-300 text-rose-600 text-sm font-semibold hover:bg-rose-50 transition-colors"
+        >
+          差し戻す
+        </button>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function PersonalGoalsPage() {
+  const [state, setState] = useState<PageState>({ kind: 'loading' })
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>('g1')
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const data = await fetchJson<{ goals: Goal[]; pendingApproval: PendingApproval | null }>(
+        '/api/goals/personal'
+      )
+      if (data) {
+        setState({ kind: 'ready', goals: data.goals, pendingApproval: data.pendingApproval })
+      } else {
+        setState({ kind: 'ready', goals: [...MOCK_GOALS], pendingApproval: MOCK_PENDING })
+      }
+    }
+    void load()
+  }, [])
+
+  const handleApprove = useCallback(async (goalId: string) => {
+    const res = await fetchJson<{ success: boolean }>(`/api/goals/personal/${goalId}/approve`)
+    if (res?.success) {
+      setActionMessage('目標を承認しました。')
+    } else {
+      setActionMessage('現在実装中です。（モック動作）')
+    }
+  }, [])
+
+  const handleReject = useCallback(async (goalId: string) => {
+    const res = await fetchJson<{ success: boolean }>(`/api/goals/personal/${goalId}/reject`)
+    if (res?.success) {
+      setActionMessage('目標を差し戻しました。')
+    } else {
+      setActionMessage('現在実装中です。（モック動作）')
+    }
+  }, [])
+
+  if (state.kind === 'loading') {
     return (
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={() => onAction(goal.id, 'approve')}
-          className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-        >
-          承認
-        </button>
-        <button
-          type="button"
-          onClick={() => onAction(goal.id, 'reject')}
-          className="rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
-        >
-          差戻し
-        </button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">読み込み中...</p>
       </div>
     )
   }
 
-  return null
+  if (state.kind === 'error') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-rose-500 text-sm">{state.message}</p>
+      </div>
+    )
+  }
+
+  const { goals, pendingApproval } = state
+  const sortedGoals = [...goals].sort((a, b) => statusOrder(a.status) - statusOrder(b.status))
+  const pendingCount = goals.filter((g) => g.status === 'pending').length
+  const totalWeight = goals.reduce((sum, g) => sum + g.weight, 0)
+
+  const selectedApproval =
+    pendingApproval && selectedGoalId === pendingApproval.goalId ? pendingApproval : null
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Page header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">目標（OKR / MBO）</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              2026年度上期 — 個人目標 {goals.length} 件・承認待ち {pendingCount} 件
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/goals/tree"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              🌳 ツリー表示
+            </a>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+            >
+              ＋ 目標を追加
+            </button>
+          </div>
+        </div>
+
+        {/* Action message */}
+        {actionMessage && (
+          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+            {actionMessage}
+          </div>
+        )}
+
+        {/* Summary bar */}
+        <div className="flex flex-wrap gap-4 bg-white rounded-xl border border-gray-200 px-5 py-4">
+          {(['pending', 'in_progress', 'completed', 'rejected'] as GoalStatus[]).map((s) => {
+            const count = goals.filter((g) => g.status === s).length
+            return (
+              <div key={s} className="flex items-center gap-2">
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(s)}`}>
+                  {statusLabel(s)}
+                </span>
+                <span className="text-sm font-bold text-gray-800">{count}</span>
+              </div>
+            )
+          })}
+          <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-500">
+            <span>合計ウェイト</span>
+            <span className={`font-semibold ${totalWeight === 100 ? 'text-emerald-600' : 'text-rose-500'}`}>
+              {totalWeight}%
+            </span>
+          </div>
+        </div>
+
+        {/* Main layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          {/* Left: Goal cards */}
+          <div className="space-y-4">
+            {sortedGoals.map((goal) => (
+              <GoalCard
+                key={goal.id}
+                goal={goal}
+                isHighlighted={selectedGoalId === goal.id}
+                onClick={() => setSelectedGoalId(goal.id === selectedGoalId ? null : goal.id)}
+              />
+            ))}
+          </div>
+
+          {/* Right: Approval panel */}
+          <div className="space-y-4">
+            {selectedApproval ? (
+              <ApprovalPanel
+                approval={selectedApproval}
+                onApprove={handleApprove}
+                onReject={handleReject}
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-white p-6 text-center">
+                <p className="text-sm text-gray-400">
+                  承認待ちの目標カードを<br />クリックすると詳細が表示されます
+                </p>
+              </div>
+            )}
+
+            {/* Progress overview card */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                進捗サマリー
+              </h4>
+              <div className="space-y-3">
+                {sortedGoals.map((goal) => (
+                  <div key={goal.id}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-600 truncate max-w-[180px]">{goal.title}</span>
+                      <span className="font-medium text-gray-800 ml-2">{goal.progressPercent}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${progressBarColor(goal.status)}`}
+                        style={{ width: `${goal.progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
