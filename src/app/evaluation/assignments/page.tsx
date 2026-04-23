@@ -201,7 +201,7 @@ export default function AssignmentsPage(): ReactElement {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-8 py-10">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">

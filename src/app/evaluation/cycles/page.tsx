@@ -192,29 +192,59 @@ export default function EvaluationCyclesPage(): ReactElement {
       setForm((v) => ({ ...v, [key]: e.target.value }))
   }
 
+  const cycles = state.kind === 'ready' ? state.cycles : []
+  const activeCount = cycles.filter((c) => c.status === 'ACTIVE').length
+  const finalizedCount = cycles.filter(
+    (c) => c.status === 'FINALIZED' || c.status === 'CLOSED',
+  ).length
+  const totalCount = cycles.length
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-8 py-10">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">
+          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
             360度評価
           </p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">評価サイクル管理</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            評価サイクル管理
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
             評価サイクルの作成・状態管理を行います。HR_MANAGER/ADMIN のみ作成・状態変更可能です。
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
         >
           {showForm ? 'キャンセル' : '＋ サイクルを作成'}
         </button>
       </header>
 
+      {/* KPI Summary */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+            総サイクル数
+          </p>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{totalCount}</p>
+          <p className="mt-1 text-xs text-slate-500">登録済みサイクル</p>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold tracking-wider text-indigo-500 uppercase">実施中</p>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-indigo-700">{activeCount}</p>
+          <p className="mt-1 text-xs text-indigo-500">現在アクティブなサイクル</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold tracking-wider text-emerald-600 uppercase">完了済み</p>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-emerald-700">{finalizedCount}</p>
+          <p className="mt-1 text-xs text-emerald-600">完了・クローズ済みサイクル</p>
+        </div>
+      </div>
+
       {actionError && (
-        <div className="mb-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">
+        <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
           {actionError}
         </div>
       )}

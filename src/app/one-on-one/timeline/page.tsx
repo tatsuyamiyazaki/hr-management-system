@@ -126,7 +126,7 @@ export default function TimelinePage(): ReactElement {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-8 py-10">
       <header className="mb-8">
         <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">1on1</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">タイムライン</h1>

@@ -1,11 +1,10 @@
 /**
- * Issue #37 / Req 4.1, 4.2, 4.3: スキルマップ画面 (HR_MANAGER 向け)
+ * Issue #195 / スキルマップ リデザイン
+ * Req 4.1, 4.2, 4.3: スキルマップ画面 (HR_MANAGER 向け)
  *
- * - マウント時に /api/skill-analytics/summary と /heatmap を並列取得
- * - 組織サマリカード / ヒートマップを表示
- * - 社員 ID 入力 → /api/skill-analytics/radar?userId= を取得してレーダーを表示
- *
- * 権限判定はサーバ側で行う前提。UI 側は取得失敗時にエラー状態として描画する。
+ * - GET /api/skill-analytics/summary → SkillSummary
+ * - GET /api/skill-analytics/heatmap → SkillHeatmap
+ * - GET /api/skill-analytics/radar?userId= → RadarData
  */
 'use client'
 
@@ -19,6 +18,10 @@ import type {
   SkillSummary,
 } from '@/lib/skill/skill-analytics-types'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ApiEnvelope<T> {
   readonly success: boolean
   readonly data: T
@@ -27,11 +30,7 @@ interface ApiEnvelope<T> {
 type OverviewState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
-  | {
-      readonly kind: 'ready'
-      readonly summary: SkillSummary
-      readonly heatmap: SkillHeatmapData
-    }
+  | { readonly kind: 'ready'; readonly summary: SkillSummary; readonly heatmap: SkillHeatmapData }
 
 type RadarState =
   | { readonly kind: 'idle' }
@@ -39,9 +38,17 @@ type RadarState =
   | { readonly kind: 'error'; readonly userId: string; readonly message: string }
   | { readonly kind: 'ready'; readonly data: RadarData }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
 const SUMMARY_URL = '/api/skill-analytics/summary'
 const HEATMAP_URL = '/api/skill-analytics/heatmap'
 const RADAR_URL = '/api/skill-analytics/radar'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: 'no-store' })
@@ -49,6 +56,14 @@ async function fetchJson<T>(url: string): Promise<T> {
   const envelope = (await res.json()) as ApiEnvelope<T>
   return envelope.data
 }
+
+function readError(err: unknown): string {
+  return err instanceof Error ? err.message : '不明なエラーが発生しました'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SkillMapPage(): ReactElement {
   const [overview, setOverview] = useState<OverviewState>({ kind: 'loading' })
@@ -67,10 +82,7 @@ export default function SkillMapPage(): ReactElement {
         setOverview({ kind: 'ready', summary, heatmap })
       } catch (err) {
         if (cancelled) return
-        setOverview({
-          kind: 'error',
-          message: err instanceof Error ? err.message : 'unknown error',
-        })
+        setOverview({ kind: 'error', message: readError(err) })
       }
     })()
     return () => {
@@ -90,19 +102,29 @@ export default function SkillMapPage(): ReactElement {
         )
         setRadar({ kind: 'ready', data })
       } catch (err) {
-        setRadar({
-          kind: 'error',
-          userId: trimmed,
-          message: err instanceof Error ? err.message : 'unknown error',
-        })
+        setRadar({ kind: 'error', userId: trimmed, message: readError(err) })
       }
     },
     [userIdInput],
   )
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-10">
-      <PageHeader />
+    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-8 py-10">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.3em] text-emerald-600 uppercase">
+            Skill Analytics
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            スキルマップ
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            組織全体のスキル充足率、部署 ×
+            カテゴリのヒートマップ、社員個人のレーダーチャートを確認できます。
+          </p>
+        </div>
+      </header>
+
       <OverviewSection state={overview} />
       <RadarSection
         state={radar}
@@ -110,54 +132,57 @@ export default function SkillMapPage(): ReactElement {
         onUserIdChange={setUserIdInput}
         onSubmit={handleRadarSubmit}
       />
-    </main>
+    </div>
   )
 }
 
-function PageHeader(): ReactElement {
-  return (
-    <header className="flex flex-col gap-1">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-        Skill analytics
-      </p>
-      <h1 className="text-3xl font-semibold tracking-tight text-slate-900">スキルマップ</h1>
-      <p className="max-w-2xl text-sm text-slate-500">
-        組織全体のスキル充足率、部署 × カテゴリのヒートマップ、社員個人のレーダーチャートを 1 画面で確認できます。
-      </p>
-    </header>
-  )
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Overview Section
+// ─────────────────────────────────────────────────────────────────────────────
 
 function OverviewSection({ state }: { readonly state: OverviewState }): ReactElement {
   if (state.kind === 'loading') {
-    return <SkeletonCard label="組織サマリを読み込み中…" />
+    return (
+      <div className="flex flex-col gap-4">
+        <SkeletonPanel label="組織サマリを読み込み中…" height="h-32" />
+        <SkeletonPanel label="ヒートマップを読み込み中…" height="h-48" />
+      </div>
+    )
   }
+
   if (state.kind === 'error') {
     return (
       <div
         role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
+        className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700"
       >
-        <p className="font-semibold">組織サマリを取得できませんでした。</p>
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="font-semibold">組織サマリを取得できませんでした</p>
+        <p className="mt-1 text-xs">{state.message}</p>
       </div>
     )
   }
+
   return (
     <div className="flex flex-col gap-6">
       <SummaryCard summary={state.summary} />
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <header className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">部署 × カテゴリ ヒートマップ</h2>
-          <p className="text-xs text-slate-500">
-            セルの濃さは平均スキルレベル (0〜5) を表します
-          </p>
+        <header className="mb-5 flex items-baseline justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">部署 × カテゴリ ヒートマップ</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              セルの濃さは平均スキルレベル（0〜5）を表します
+            </p>
+          </div>
         </header>
         <SkillHeatmap data={state.heatmap} />
       </section>
     </div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Radar Section
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface RadarSectionProps {
   readonly state: RadarState
@@ -170,28 +195,31 @@ function RadarSection(props: RadarSectionProps): ReactElement {
   const { state, userId, onUserIdChange, onSubmit } = props
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <header className="mb-4 flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-slate-900">社員レーダー</h2>
-        <p className="text-xs text-slate-500">
+      <header className="mb-5">
+        <h2 className="text-base font-semibold text-slate-900">社員レーダー</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
           社員 ID を入力するとレーダーチャートでスキル分布を確認できます。
         </p>
       </header>
 
-      <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-3">
-        <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-slate-600">
-          <span>社員 ID</span>
+      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <label htmlFor="radar-userId" className="text-xs font-medium text-slate-600">
+            社員 ID
+          </label>
           <input
+            id="radar-userId"
             type="text"
             value={userId}
             onChange={(e) => onUserIdChange(e.target.value)}
             placeholder="cm_user_xxxxxxxxx"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
           />
-        </label>
+        </div>
         <button
           type="submit"
           disabled={state.kind === 'loading' || userId.trim().length === 0}
-          className="mt-5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           {state.kind === 'loading' ? '読み込み中…' : '表示'}
         </button>
@@ -213,16 +241,16 @@ function RadarBody({ state }: { readonly state: RadarState }): ReactElement {
     )
   }
   if (state.kind === 'loading') {
-    return <SkeletonCard label={`${state.userId} のスキルを読み込み中…`} />
+    return <SkeletonPanel label={`${state.userId} のスキルを読み込み中…`} height="h-40" />
   }
   if (state.kind === 'error') {
     return (
       <div
         role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
+        className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700"
       >
-        <p className="font-semibold">レーダーを取得できませんでした。</p>
-        <p className="mt-1 text-xs text-red-600">
+        <p className="font-semibold">レーダーを取得できませんでした</p>
+        <p className="mt-1 text-xs">
           {state.userId}: {state.message}
         </p>
       </div>
@@ -231,11 +259,21 @@ function RadarBody({ state }: { readonly state: RadarState }): ReactElement {
   return <SkillRadar data={state.data} />
 }
 
-function SkeletonCard({ label }: { readonly label: string }): ReactElement {
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SkeletonPanel({
+  label,
+  height,
+}: {
+  readonly label: string
+  readonly height: string
+}): ReactElement {
   return (
     <div
       aria-busy="true"
-      className="flex h-40 animate-pulse items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-400"
+      className={`flex ${height} animate-pulse items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-400`}
     >
       {label}
     </div>
