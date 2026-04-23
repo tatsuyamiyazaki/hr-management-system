@@ -1,40 +1,21 @@
 /**
- * Issue #179 / Task 15.2 / Req 8.1, 8.2: 360度評価サイクル管理画面
+ * Issue #202: 360度評価画面リデザイン
  *
- * - GET  /api/evaluation/cycles — サイクル一覧
- * - POST /api/evaluation/cycles — サイクル作成（HR_MANAGER/ADMIN）
- * - POST /api/evaluation/cycles/[id]/activate — DRAFT → ACTIVE
- * - POST /api/evaluation/cycles/[id]/close    — FINALIZED → CLOSED
+ * - KPI カード 3 枚（提出済み / 最低評価者数未達 / AI品質ゲート通過率）
+ * - タブナビゲーション（全体進捗 / 評価者別 / 被評価者別 / 異議申立て）
+ * - 被評価者別進捗テーブル（ステータスバッジ・プログレスバー）
+ * - API 未実装時はモックデータにフォールバック
+ *
+ * GET /api/evaluation/cycles              — サイクル一覧
+ * GET /api/evaluation/cycles/{id}/progress — 被評価者別進捗
  */
 'use client'
 
-import { useEffect, useState, type ReactElement, type FormEvent, type ChangeEvent } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-
-type ReviewCycleStatus =
-  | 'DRAFT'
-  | 'ACTIVE'
-  | 'AGGREGATING'
-  | 'PENDING_FEEDBACK_APPROVAL'
-  | 'FINALIZED'
-  | 'CLOSED'
-
-interface ReviewCycleRecord {
-  readonly id: string
-  readonly name: string
-  readonly status: ReviewCycleStatus
-  readonly startDate: string
-  readonly endDate: string
-  readonly items: readonly string[]
-  readonly incentiveK: number
-  readonly minReviewers: number
-  readonly maxTargets: number
-  readonly createdBy: string
-  readonly createdAt: string
-}
 
 interface ApiEnvelope<T> {
   readonly success?: boolean
@@ -42,478 +23,609 @@ interface ApiEnvelope<T> {
   readonly error?: string
 }
 
+interface CycleSummary {
+  readonly id: string
+  readonly name: string
+  readonly startDate: string // ISO date
+  readonly endDate: string
+  readonly minReviewers: number
+  readonly submittedCount: number
+  readonly totalCount: number
+  readonly undertakenCount: number
+  readonly aiPassRate: number // 0–100
+  readonly aiAvgTurns: number
+  readonly aiPassRateDiff: number // 前期差 pt
+}
+
+type EvaluateeStatus =
+  | 'completed'
+  | 'in_progress'
+  | 'deadline_near'
+  | 'insufficient_stats'
+  | 'mild_converted'
+
+interface EvaluateeRow {
+  readonly id: string
+  readonly name: string
+  readonly employeeNumber: string
+  readonly department: string
+  readonly role: string
+  readonly evaluatorDone: number
+  readonly evaluatorTotal: number
+  readonly progressPercent: number
+  readonly status: EvaluateeStatus
+}
+
+type ActiveTab = 'overall' | 'by-evaluator' | 'by-evaluatee' | 'appeals'
+
 type PageState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly cycles: readonly ReviewCycleRecord[] }
-
-interface FormValues {
-  name: string
-  startDate: string
-  endDate: string
-  items: string
-  incentiveK: string
-  minReviewers: string
-  maxTargets: string
-}
+  | { readonly kind: 'ready'; readonly cycle: CycleSummary; readonly rows: readonly EvaluateeRow[] }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constants
+// Mock data
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CYCLES_URL = '/api/evaluation/cycles'
-
-const EMPTY_FORM: FormValues = {
-  name: '',
-  startDate: '',
-  endDate: '',
-  items: '',
-  incentiveK: '1',
-  minReviewers: '3',
-  maxTargets: '10',
+const MOCK_CYCLE: CycleSummary = {
+  id: 'cycle-2026-h1',
+  name: '2026年度上期',
+  startDate: '2026-04-01',
+  endDate: '2026-06-30',
+  minReviewers: 3,
+  submittedCount: 142,
+  totalCount: 180,
+  undertakenCount: 8,
+  aiPassRate: 91,
+  aiAvgTurns: 2.3,
+  aiPassRateDiff: 4,
 }
 
-const STATUS_LABELS: Record<ReviewCycleStatus, string> = {
-  DRAFT: '下書き',
-  ACTIVE: '実施中',
-  AGGREGATING: '集計中',
-  PENDING_FEEDBACK_APPROVAL: 'FB承認待ち',
-  FINALIZED: '完了',
-  CLOSED: 'クローズ',
-}
-
-const STATUS_COLORS: Record<ReviewCycleStatus, string> = {
-  DRAFT: 'bg-slate-100 text-slate-600',
-  ACTIVE: 'bg-indigo-100 text-indigo-700',
-  AGGREGATING: 'bg-amber-100 text-amber-700',
-  PENDING_FEEDBACK_APPROVAL: 'bg-purple-100 text-purple-700',
-  FINALIZED: 'bg-emerald-100 text-emerald-700',
-  CLOSED: 'bg-slate-100 text-slate-500',
-}
+const MOCK_ROWS: readonly EvaluateeRow[] = [
+  {
+    id: 'ev-001',
+    name: '田中 一郎',
+    employeeNumber: 'emp-00123',
+    department: '開発部',
+    role: 'シニアエンジニア',
+    evaluatorDone: 4,
+    evaluatorTotal: 4,
+    progressPercent: 100,
+    status: 'completed',
+  },
+  {
+    id: 'ev-002',
+    name: '鈴木 花子',
+    employeeNumber: 'emp-00256',
+    department: '営業部',
+    role: 'セールスマネージャー',
+    evaluatorDone: 3,
+    evaluatorTotal: 4,
+    progressPercent: 75,
+    status: 'in_progress',
+  },
+  {
+    id: 'ev-003',
+    name: '佐藤 次郎',
+    employeeNumber: 'emp-00387',
+    department: '人事部',
+    role: 'HRビジネスパートナー',
+    evaluatorDone: 2,
+    evaluatorTotal: 4,
+    progressPercent: 50,
+    status: 'deadline_near',
+  },
+  {
+    id: 'ev-004',
+    name: '山田 美咲',
+    employeeNumber: 'emp-00512',
+    department: 'マーケティング部',
+    role: 'プロダクトマネージャー',
+    evaluatorDone: 1,
+    evaluatorTotal: 4,
+    progressPercent: 25,
+    status: 'insufficient_stats',
+  },
+  {
+    id: 'ev-005',
+    name: '伊藤 健',
+    employeeNumber: 'emp-00634',
+    department: '経理部',
+    role: 'ファイナンスアナリスト',
+    evaluatorDone: 3,
+    evaluatorTotal: 4,
+    progressPercent: 75,
+    status: 'mild_converted',
+  },
+  {
+    id: 'ev-006',
+    name: '渡辺 さくら',
+    employeeNumber: 'emp-00741',
+    department: '開発部',
+    role: 'フロントエンドエンジニア',
+    evaluatorDone: 4,
+    evaluatorTotal: 4,
+    progressPercent: 100,
+    status: 'completed',
+  },
+  {
+    id: 'ev-007',
+    name: '中村 拓哉',
+    employeeNumber: 'emp-00855',
+    department: 'カスタマーサポート',
+    role: 'サポートスペシャリスト',
+    evaluatorDone: 2,
+    evaluatorTotal: 4,
+    progressPercent: 50,
+    status: 'in_progress',
+  },
+  {
+    id: 'ev-008',
+    name: '小林 陽子',
+    employeeNumber: 'emp-00962',
+    department: '営業部',
+    role: 'アカウントエグゼクティブ',
+    evaluatorDone: 0,
+    evaluatorTotal: 3,
+    progressPercent: 0,
+    status: 'insufficient_stats',
+  },
+]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store', ...options })
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!res.ok) throw new Error(envelope.error ?? `HTTP ${res.status}`)
-  return (envelope.data ?? null) as T
-}
 
 function readError(err: unknown): string {
   if (err instanceof Error) return err.message
   return '予期せぬエラーが発生しました'
 }
 
-function formatDate(iso: string): string {
-  return iso.slice(0, 10)
+async function fetchJson<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
+    if (!res.ok || !envelope.data) return null
+    return envelope.data
+  } catch {
+    return null
+  }
 }
+
+function daysRemaining(endDate: string): number {
+  const end = new Date(endDate)
+  const now = new Date()
+  const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, diff)
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function submissionRate(done: number, total: number): number {
+  if (total === 0) return 0
+  return Math.round((done / total) * 100)
+}
+
+const AVATAR_COLORS = [
+  'bg-indigo-500',
+  'bg-emerald-500',
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-cyan-500',
+] as const
+
+function avatarColor(id: string): string {
+  return AVATAR_COLORS[id.charCodeAt(id.length - 1) % AVATAR_COLORS.length] ?? 'bg-slate-500'
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) {
+    return `${parts[0]?.charAt(0) ?? ''}${parts[1]?.charAt(0) ?? ''}`
+  }
+  return name.charAt(0)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status config
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<EvaluateeStatus, string> = {
+  completed: '完了',
+  in_progress: '進行中',
+  deadline_near: '期限近',
+  insufficient_stats: '統計的有意性不足',
+  mild_converted: 'マイルド化済',
+}
+
+const STATUS_CLASS: Record<EvaluateeStatus, string> = {
+  completed: 'bg-indigo-700 text-white',
+  in_progress: 'bg-blue-100 text-blue-700',
+  deadline_near: 'bg-amber-100 text-amber-700',
+  insufficient_stats: 'bg-rose-100 text-rose-700',
+  mild_converted: 'bg-violet-100 text-violet-700',
+}
+
+function progressBarColor(status: EvaluateeStatus, pct: number): string {
+  if (status === 'insufficient_stats') return 'bg-rose-500'
+  if (pct === 100) return 'bg-indigo-700'
+  if (pct >= 67) return 'bg-indigo-500'
+  return 'bg-amber-500'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab config
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TABS: ReadonlyArray<{ readonly id: ActiveTab; readonly label: string }> = [
+  { id: 'overall', label: '全体進捗' },
+  { id: 'by-evaluator', label: '評価者別' },
+  { id: 'by-evaluatee', label: '被評価者別' },
+  { id: 'appeals', label: '異議申立て' },
+]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function EvaluationCyclesPage(): ReactElement {
+export default function CyclesPage(): ReactElement {
   const [state, setState] = useState<PageState>({ kind: 'loading' })
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState<FormValues>(EMPTY_FORM)
-  const [submitting, setSubmitting] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [transitionId, setTransitionId] = useState<string | null>(null)
-
-  async function loadCycles(): Promise<void> {
-    setState({ kind: 'loading' })
-    try {
-      const cycles = await fetchJson<ReviewCycleRecord[]>(CYCLES_URL)
-      setState({ kind: 'ready', cycles: Array.isArray(cycles) ? cycles : [] })
-    } catch (err) {
-      setState({ kind: 'error', message: readError(err) })
-    }
-  }
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overall')
 
   useEffect(() => {
-    void loadCycles()
+    let cancelled = false
+    void (async () => {
+      try {
+        const cycles = await fetchJson<CycleSummary[]>('/api/evaluation/cycles')
+        const activeCycle =
+          Array.isArray(cycles) && cycles.length > 0 && cycles[0] ? cycles[0] : MOCK_CYCLE
+
+        const rows = await fetchJson<EvaluateeRow[]>(
+          `/api/evaluation/cycles/${activeCycle.id}/progress`,
+        )
+        if (cancelled) return
+        setState({
+          kind: 'ready',
+          cycle: activeCycle,
+          rows: Array.isArray(rows) ? rows : MOCK_ROWS,
+        })
+      } catch (err) {
+        if (cancelled) return
+        setState({ kind: 'error', message: readError(err) })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  async function handleCreate(e: FormEvent): Promise<void> {
-    e.preventDefault()
-    setSubmitting(true)
-    setActionError(null)
-    try {
-      const itemsArray = form.items
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean)
-      await fetchJson(CYCLES_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          startDate: form.startDate,
-          endDate: form.endDate,
-          items: itemsArray,
-          incentiveK: Number(form.incentiveK),
-          minReviewers: Number(form.minReviewers),
-          maxTargets: Number(form.maxTargets),
-        }),
-      })
-      setForm(EMPTY_FORM)
-      setShowForm(false)
-      await loadCycles()
-    } catch (err) {
-      const msg = readError(err)
-      setActionError(
-        msg.toLowerCase().includes('403') || msg.toLowerCase().includes('forbidden')
-          ? 'サイクル作成には HR_MANAGER/ADMIN 権限が必要です'
-          : msg,
-      )
-    } finally {
-      setSubmitting(false)
-    }
+  if (state.kind === 'loading') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <PageShell cycleName="360度評価" />
+        <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-24 text-sm text-slate-500">
+          <span className="animate-pulse">読み込み中…</span>
+        </div>
+      </main>
+    )
   }
 
-  async function handleTransition(cycleId: string, action: 'activate' | 'close'): Promise<void> {
-    setTransitionId(cycleId)
-    setActionError(null)
-    try {
-      await fetchJson(`${CYCLES_URL}/${cycleId}/${action}`, { method: 'POST' })
-      await loadCycles()
-    } catch (err) {
-      setActionError(readError(err))
-    } finally {
-      setTransitionId(null)
-    }
+  if (state.kind === 'error') {
+    return (
+      <main className="mx-auto max-w-7xl px-8 py-10">
+        <PageShell cycleName="360度評価" />
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
+          <p className="font-semibold">データの取得に失敗しました</p>
+          <p className="mt-1 text-xs opacity-80">{state.message}</p>
+        </div>
+      </main>
+    )
   }
 
-  function field(key: keyof FormValues) {
-    return (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((v) => ({ ...v, [key]: e.target.value }))
-  }
-
-  const cycles = state.kind === 'ready' ? state.cycles : []
-  const activeCount = cycles.filter((c) => c.status === 'ACTIVE').length
-  const finalizedCount = cycles.filter(
-    (c) => c.status === 'FINALIZED' || c.status === 'CLOSED',
-  ).length
-  const totalCount = cycles.length
+  const { cycle, rows } = state
+  const daysLeft = daysRemaining(cycle.endDate)
+  const rate = submissionRate(cycle.submittedCount, cycle.totalCount)
 
   return (
-    <main className="mx-auto max-w-6xl px-8 py-10">
+    <main className="mx-auto max-w-7xl px-8 py-10">
+      {/* Breadcrumb */}
+      <p className="mb-4 text-xs text-slate-400">
+        ワークスペース / <span className="text-slate-600">360度評価</span>
+      </p>
+
+      {/* Page Header */}
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
-            360度評価
+            360° Evaluation
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-            評価サイクル管理
+            360度評価 — {cycle.name}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            評価サイクルの作成・状態管理を行います。HR_MANAGER/ADMIN のみ作成・状態変更可能です。
+            評価期間: {formatDate(cycle.startDate)} 〜 {formatDate(cycle.endDate)}（残{' '}
+            <span
+              className={`font-semibold tabular-nums ${daysLeft <= 7 ? 'text-rose-600' : 'text-slate-900'}`}
+            >
+              {daysLeft}
+            </span>{' '}
+            日）・最低評価者数{' '}
+            <span className="font-semibold text-slate-900 tabular-nums">{cycle.minReviewers}</span>{' '}
+            名
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-        >
-          {showForm ? 'キャンセル' : '＋ サイクルを作成'}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            代替評価者を割当
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            サイクルを確定
+          </button>
+        </div>
       </header>
 
-      {/* KPI Summary */}
+      {/* KPI Cards */}
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
-            総サイクル数
-          </p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{totalCount}</p>
-          <p className="mt-1 text-xs text-slate-500">登録済みサイクル</p>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-indigo-500 uppercase">実施中</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-indigo-700">{activeCount}</p>
-          <p className="mt-1 text-xs text-indigo-500">現在アクティブなサイクル</p>
-        </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-emerald-600 uppercase">完了済み</p>
-          <p className="mt-2 text-3xl font-bold tabular-nums text-emerald-700">{finalizedCount}</p>
-          <p className="mt-1 text-xs text-emerald-600">完了・クローズ済みサイクル</p>
-        </div>
+        <KpiSubmitted submitted={cycle.submittedCount} total={cycle.totalCount} rate={rate} />
+        <KpiUndertaken count={cycle.undertakenCount} />
+        <KpiAiGate
+          passRate={cycle.aiPassRate}
+          avgTurns={cycle.aiAvgTurns}
+          diff={cycle.aiPassRateDiff}
+        />
       </div>
 
-      {actionError && (
-        <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
-          {actionError}
+      {/* Tab navigation */}
+      <div className="mb-6 border-b border-slate-200">
+        <nav className="-mb-px flex gap-6">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`border-b-2 pb-3 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'overall' ? (
+        <OverallProgressTab rows={rows} />
+      ) : (
+        <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 py-20 text-sm text-slate-400">
+          このタブは準備中です（Coming soon）
         </div>
       )}
-
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="mb-8 rounded-xl border border-indigo-200 bg-indigo-50 p-6"
-        >
-          <h2 className="mb-4 font-semibold text-slate-800">評価サイクルを登録</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                サイクル名 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                value={form.name}
-                onChange={field('name')}
-                placeholder="例: 2024年度上期 360度評価"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                開始日 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                type="date"
-                value={form.startDate}
-                onChange={field('startDate')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                終了日 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                type="date"
-                value={form.endDate}
-                onChange={field('endDate')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                評価項目（1行1項目）<span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                required
-                rows={4}
-                value={form.items}
-                onChange={field('items')}
-                placeholder={'価値観体現\n経営貢献\nチームワーク'}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                インセンティブ係数 k <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                type="number"
-                step="0.1"
-                min="0.1"
-                max="10"
-                value={form.incentiveK}
-                onChange={field('incentiveK')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                最低評価者数 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                type="number"
-                min="1"
-                max="50"
-                value={form.minReviewers}
-                onChange={field('minReviewers')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                最大対象者数 <span className="text-rose-500">*</span>
-              </label>
-              <input
-                required
-                type="number"
-                min="1"
-                max="1000"
-                value={form.maxTargets}
-                onChange={field('maxTargets')}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {submitting ? '作成中…' : '作成する'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <CycleList
-        state={state}
-        transitionId={transitionId}
-        onActivate={(id) => void handleTransition(id, 'activate')}
-        onClose={(id) => void handleTransition(id, 'close')}
-      />
     </main>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CycleList
+// PageShell (loading / error skeleton)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CycleList({
-  state,
-  transitionId,
-  onActivate,
-  onClose,
-}: {
-  readonly state: PageState
-  readonly transitionId: string | null
-  readonly onActivate: (id: string) => void
-  readonly onClose: (id: string) => void
-}): ReactElement {
-  if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-        <span className="animate-pulse">読み込み中…</span>
-      </div>
-    )
-  }
-  if (state.kind === 'error') {
-    return (
-      <div className="rounded-xl border border-rose-300 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">データの取得に失敗しました</p>
-        <p className="mt-1 text-xs">{state.message}</p>
-      </div>
-    )
-  }
-  if (state.cycles.length === 0) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
-        評価サイクルがありません
-      </div>
-    )
-  }
-
-  const sorted = [...state.cycles].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
-
+function PageShell({ cycleName }: { readonly cycleName: string }): ReactElement {
   return (
-    <div className="space-y-4">
-      {sorted.map((cycle) => (
-        <CycleCard
-          key={cycle.id}
-          cycle={cycle}
-          isTransitioning={transitionId === cycle.id}
-          onActivate={onActivate}
-          onClose={onClose}
-        />
-      ))}
+    <header className="mb-8">
+      <p className="mb-1 text-xs text-slate-400">
+        ワークスペース / <span className="text-slate-600">360度評価</span>
+      </p>
+      <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
+        360° Evaluation
+      </p>
+      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">{cycleName}</h1>
+    </header>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KPI Cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+function KpiSubmitted({
+  submitted,
+  total,
+  rate,
+}: {
+  readonly submitted: number
+  readonly total: number
+  readonly rate: number
+}): ReactElement {
+  return (
+    <div className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <span className="absolute right-4 top-4 text-lg" aria-hidden>
+        ✅
+      </span>
+      <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">提出済み</p>
+      <p className="mt-2 text-4xl font-bold text-slate-900 tabular-nums">{submitted}</p>
+      <p className="mt-1 text-xs text-slate-500">総枚数 {total}</p>
+      <p className="mt-2 text-xl font-semibold text-indigo-600 tabular-nums">{rate}%</p>
+    </div>
+  )
+}
+
+function KpiUndertaken({ count }: { readonly count: number }): ReactElement {
+  return (
+    <div className="relative rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+      <span className="absolute right-4 top-4 text-lg" aria-hidden>
+        ⚠️
+      </span>
+      <p className="text-xs font-semibold tracking-wider text-amber-600 uppercase">
+        最低評価者数未達
+      </p>
+      <p className="mt-2 text-4xl font-bold text-amber-700 tabular-nums">{count}</p>
+      <p className="mt-1 text-xs text-amber-600">被評価者のうち</p>
+      {count > 0 && (
+        <span className="mt-3 inline-flex items-center rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+          要対応
+        </span>
+      )}
+    </div>
+  )
+}
+
+function KpiAiGate({
+  passRate,
+  avgTurns,
+  diff,
+}: {
+  readonly passRate: number
+  readonly avgTurns: number
+  readonly diff: number
+}): ReactElement {
+  const diffPositive = diff >= 0
+  return (
+    <div className="relative rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+      <span className="absolute right-4 top-4 text-lg" aria-hidden>
+        ✨
+      </span>
+      <p className="text-xs font-semibold tracking-wider text-indigo-500 uppercase">
+        AI品質ゲート通過率
+      </p>
+      <p className="mt-2 text-4xl font-bold text-indigo-700 tabular-nums">{passRate}%</p>
+      <p className="mt-1 text-xs text-indigo-500">平均 {avgTurns} ターン</p>
+      <p className={`mt-1 text-sm font-semibold ${diffPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+        {diffPositive ? `↑ ${diff}pt` : `↓ ${Math.abs(diff)}pt`}
+      </p>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CycleCard
+// OverallProgressTab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CycleCard({
-  cycle,
-  isTransitioning,
-  onActivate,
-  onClose,
-}: {
-  readonly cycle: ReviewCycleRecord
-  readonly isTransitioning: boolean
-  readonly onActivate: (id: string) => void
-  readonly onClose: (id: string) => void
-}): ReactElement {
+function OverallProgressTab({ rows }: { readonly rows: readonly EvaluateeRow[] }): ReactElement {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[cycle.status]}`}
-            >
-              {STATUS_LABELS[cycle.status]}
-            </span>
-          </div>
-          <p className="mt-1 font-semibold text-slate-900">{cycle.name}</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {formatDate(cycle.startDate)} 〜 {formatDate(cycle.endDate)}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>最低評価者: {cycle.minReviewers}名</span>
-            <span>最大対象者: {cycle.maxTargets}名</span>
-            <span>係数 k: {cycle.incentiveK}</span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {cycle.items.map((item) => (
-              <span
-                key={item}
-                className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-col gap-2">
-          {cycle.status === 'DRAFT' && (
-            <button
-              type="button"
-              disabled={isTransitioning}
-              onClick={() => onActivate(cycle.id)}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {isTransitioning ? '処理中…' : '開始する'}
-            </button>
-          )}
-          {cycle.status === 'FINALIZED' && (
-            <button
-              type="button"
-              disabled={isTransitioning}
-              onClick={() => onClose(cycle.id)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {isTransitioning ? '処理中…' : 'クローズ'}
-            </button>
-          )}
-          <a
-            href={`/evaluation/assignments?cycleId=${cycle.id}`}
-            className="rounded-md border border-indigo-200 px-3 py-1.5 text-center text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <p className="font-semibold text-slate-900">被評価者別進捗</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
-            割り当て管理 →
-          </a>
-          {(cycle.status === 'ACTIVE' ||
-            cycle.status === 'AGGREGATING' ||
-            cycle.status === 'FINALIZED') && (
-            <a
-              href={`/evaluation/progress?cycleId=${cycle.id}`}
-              className="rounded-md border border-emerald-200 px-3 py-1.5 text-center text-xs font-medium text-emerald-600 hover:bg-emerald-50"
-            >
-              進捗確認 →
-            </a>
-          )}
+            フィルタ ▾
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            CSV ↓
+          </button>
         </div>
       </div>
+
+      {rows.length === 0 ? (
+        <div className="py-16 text-center text-sm text-slate-400">データがありません</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <th className="px-6 py-3 text-left">被評価者</th>
+                <th className="px-6 py-3 text-left">部署 / 役職</th>
+                <th className="px-6 py-3 text-left">評価者</th>
+                <th className="px-6 py-3 text-left">進捗</th>
+                <th className="px-6 py-3 text-left">ステータス</th>
+                <th className="px-6 py-3 text-right">詳細</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <EvaluateeTableRow key={row.id} row={row} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
+  )
+}
+
+function EvaluateeTableRow({ row }: { readonly row: EvaluateeRow }): ReactElement {
+  return (
+    <tr className="hover:bg-slate-50">
+      {/* 被評価者 */}
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${avatarColor(row.id)}`}
+          >
+            {getInitials(row.name)}
+          </div>
+          <div>
+            <p className="font-medium text-slate-900">{row.name}</p>
+            <p className="font-mono text-[10px] text-slate-400">{row.employeeNumber}</p>
+          </div>
+        </div>
+      </td>
+
+      {/* 部署 / 役職 */}
+      <td className="px-6 py-4">
+        <p className="text-slate-800">{row.department}</p>
+        <p className="text-xs text-slate-400">{row.role}</p>
+      </td>
+
+      {/* 評価者 */}
+      <td className="px-6 py-4 tabular-nums text-slate-700">
+        {row.evaluatorDone} / {row.evaluatorTotal}
+      </td>
+
+      {/* 進捗 */}
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-28 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full ${progressBarColor(row.status, row.progressPercent)}`}
+              style={{ width: `${row.progressPercent}%` }}
+            />
+          </div>
+          <span className="w-9 text-right text-xs tabular-nums text-slate-600">
+            {row.progressPercent}%
+          </span>
+        </div>
+      </td>
+
+      {/* ステータス */}
+      <td className="px-6 py-4">
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[row.status]}`}
+        >
+          {STATUS_LABEL[row.status]}
+        </span>
+      </td>
+
+      {/* 詳細 */}
+      <td className="px-6 py-4 text-right">
+        <button
+          type="button"
+          className="text-sm text-slate-400 hover:text-indigo-600"
+          aria-label={`${row.name}の詳細を見る`}
+        >
+          ›
+        </button>
+      </td>
+    </tr>
   )
 }
