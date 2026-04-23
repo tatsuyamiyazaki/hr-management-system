@@ -1,477 +1,504 @@
-/**
- * Issue #198: スキル管理画面
- *
- * - KPI カード 3 枚（登録済みスキル / 本人申告率 / 上長承認待ち）
- * - 左ペイン: スキルマスタ一覧テーブル（カテゴリフィルタ）
- * - 右ペイン: 承認待ち申告パネル（承認 / 差し戻し）
- * - GET /api/skills/catalog — スキルマスタ一覧
- * - GET /api/skills/pending — 承認待ち申告一覧
- * - POST /api/skills/{id}/approve — 承認
- */
 'use client'
 
-import { useEffect, useState, useCallback, type ReactElement, type ChangeEvent } from 'react'
-import type { SkillMaster } from '@/lib/master/master-types'
-import { toSkillMasterId } from '@/lib/master/master-types'
-import type { EmployeeSkill } from '@/lib/skill/skill-types'
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ApiEnvelope<T> {
-  readonly success?: boolean
-  readonly data?: T
-  readonly error?: string
+type SkillCategory = 'TECHNICAL' | 'BUSINESS' | 'MANAGEMENT' | 'LANGUAGE' | 'OTHER'
+
+interface SkillMaster {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly category: SkillCategory
+  readonly maxLevel: 1 | 2 | 3 | 4 | 5
+  readonly holderCount: number
 }
 
-type CatalogState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly skills: readonly SkillMaster[] }
-
-type PendingState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly items: readonly EmployeeSkill[] }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function readError(err: unknown): string {
-  if (err instanceof Error) return err.message
-  return '予期せぬエラーが発生しました'
-}
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: 'no-store', ...options })
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!res.ok) throw new Error(envelope.error ?? `HTTP ${res.status}`)
-  return (envelope.data ?? null) as T
-}
-
-function levelLabel(level: number): string {
-  const labels = ['', '初級', '中級', '上級', '熟練', 'エキスパート']
-  return labels[level] ?? `Lv.${level}`
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function SkillManagementPage(): ReactElement {
-  const [catalogState, setCatalogState] = useState<CatalogState>({ kind: 'loading' })
-  const [pendingState, setPendingState] = useState<PendingState>({ kind: 'loading' })
-  const [categoryFilter, setCategoryFilter] = useState<string>('')
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
-
-  const loadCatalog = useCallback(async () => {
-    setCatalogState({ kind: 'loading' })
-    try {
-      const skills = await fetchJson<SkillMaster[]>('/api/skills/catalog')
-      setCatalogState({ kind: 'ready', skills: Array.isArray(skills) ? skills : [] })
-    } catch (err) {
-      setCatalogState({ kind: 'error', message: readError(err) })
-    }
-  }, [])
-
-  const loadPending = useCallback(async () => {
-    setPendingState({ kind: 'loading' })
-    try {
-      const items = await fetchJson<EmployeeSkill[]>('/api/skills/pending')
-      setPendingState({ kind: 'ready', items: Array.isArray(items) ? items : [] })
-    } catch (err) {
-      setPendingState({ kind: 'error', message: readError(err) })
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadCatalog()
-    void loadPending()
-  }, [loadCatalog, loadPending])
-
-  const handleApprove = useCallback(
-    async (skillId: string) => {
-      setActionError(null)
-      setActionSuccess(null)
-      try {
-        await fetchJson(`/api/skills/${skillId}/approve`, { method: 'POST' })
-        setActionSuccess('承認しました')
-        void loadPending()
-      } catch (err) {
-        setActionError(readError(err))
-      }
-    },
-    [loadPending],
-  )
-
-  const handleReject = useCallback((_skillId: string) => {
-    setActionError('差し戻し API は現在実装中です')
-  }, [])
-
-  const catalogSkills = catalogState.kind === 'ready' ? catalogState.skills : []
-  const pendingItems = pendingState.kind === 'ready' ? pendingState.items : []
-  const categories = Array.from(new Set(catalogSkills.map((s) => s.category))).sort()
-  const pendingCount = pendingItems.length
-  const filteredSkills = categoryFilter
-    ? catalogSkills.filter((s) => s.category === categoryFilter)
-    : catalogSkills
-
-  return (
-    <main className="mx-auto max-w-7xl px-8 py-10">
-      {/* Header */}
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
-            Skills
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">スキル管理</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            マスタ {catalogSkills.length} スキル・承認待ち{' '}
-            <span className="font-semibold text-amber-600">{pendingCount} 件</span>
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            マスタを編集
-          </button>
-          <button
-            type="button"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-          >
-            CSV 一括登録
-          </button>
-        </div>
-      </header>
-
-      {/* KPI Cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
-            登録済みスキル
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-900 tabular-nums">
-            {catalogState.kind === 'loading' ? '…' : catalogSkills.length}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">{categories.length} カテゴリ</p>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-indigo-500 uppercase">
-            本人申告率
-          </p>
-          <p className="mt-2 text-3xl font-bold text-indigo-700 tabular-nums">—</p>
-          <p className="mt-1 text-xs text-indigo-500">集計データ準備中</p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wider text-amber-600 uppercase">
-            上長承認待ち
-          </p>
-          <p className="mt-2 text-3xl font-bold text-amber-700 tabular-nums">
-            {pendingState.kind === 'loading' ? '…' : pendingCount}
-          </p>
-          {pendingCount > 0 ? (
-            <span className="mt-1 inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-              処理要
-            </span>
-          ) : (
-            <p className="mt-1 text-xs text-amber-600">対応不要</p>
-          )}
-        </div>
-      </div>
-
-      {/* Action feedback */}
-      {actionError && (
-        <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
-          {actionError}
-        </div>
-      )}
-      {actionSuccess && (
-        <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
-          ✓ {actionSuccess}
-        </div>
-      )}
-
-      {/* 2-column layout */}
-      <div className="flex gap-5">
-        {/* Left: Skill Master Table */}
-        <section className="min-w-0 flex-1">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">スキルマスタ一覧</h2>
-            <div className="flex items-center gap-2">
-              <select
-                value={categoryFilter}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) => setCategoryFilter(e.target.value)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-400 focus:outline-none"
-              >
-                <option value="">すべてのカテゴリ</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-              >
-                ＋ 追加
-              </button>
-            </div>
-          </div>
-          <SkillCatalogTable state={catalogState} skills={filteredSkills} />
-        </section>
-
-        {/* Right: Pending Approvals */}
-        <aside className="w-80 shrink-0">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-800">承認待ち申告</h2>
-            {pendingCount > 0 && (
-              <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
-                {pendingCount}
-              </span>
-            )}
-          </div>
-          <PendingPanel
-            state={pendingState}
-            catalog={catalogSkills}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        </aside>
-      </div>
-    </main>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SkillCatalogTable
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface SkillCatalogTableProps {
-  readonly state: CatalogState
-  readonly skills: readonly SkillMaster[]
-}
-
-function SkillCatalogTable({ state, skills }: SkillCatalogTableProps): ReactElement {
-  if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-        <span className="animate-pulse">読み込み中…</span>
-      </div>
-    )
-  }
-  if (state.kind === 'error') {
-    return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">スキルマスタの取得に失敗しました</p>
-        <p className="mt-1 text-xs opacity-80">{state.message}</p>
-      </div>
-    )
-  }
-  if (skills.length === 0) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
-        スキルが見つかりませんでした
-      </div>
-    )
-  }
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
-            <th className="px-4 py-3">スキル名</th>
-            <th className="px-4 py-3">カテゴリ</th>
-            <th className="px-4 py-3">レベル上限</th>
-            <th className="px-3 py-3 text-right">操作</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {skills.map((skill) => (
-            <SkillRow key={skill.id} skill={skill} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SkillRow
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface SkillRowProps {
-  readonly skill: SkillMaster
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  技術: 'bg-blue-100 text-blue-700',
-  マネジメント: 'bg-purple-100 text-purple-700',
-  コミュニケーション: 'bg-green-100 text-green-700',
-  語学: 'bg-orange-100 text-orange-700',
-}
-
-function categoryColor(category: string): string {
-  return CATEGORY_COLORS[category] ?? 'bg-slate-100 text-slate-600'
-}
-
-function SkillRow({ skill }: SkillRowProps): ReactElement {
-  return (
-    <tr className="hover:bg-slate-50">
-      <td className="px-4 py-3">
-        <p className="font-medium text-slate-900">{skill.name}</p>
-        {skill.description && (
-          <p className="mt-0.5 max-w-[200px] truncate text-xs text-slate-400">
-            {skill.description}
-          </p>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor(skill.category)}`}
-        >
-          {skill.category}
-        </span>
-      </td>
-      <td className="px-4 py-3 text-xs text-slate-600">Lv.5 まで</td>
-      <td className="px-3 py-3 text-right">
-        <button
-          type="button"
-          className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-        >
-          編集
-        </button>
-      </td>
-    </tr>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PendingPanel
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface PendingPanelProps {
-  readonly state: PendingState
-  readonly catalog: readonly SkillMaster[]
-  readonly onApprove: (id: string) => Promise<void>
-  readonly onReject: (id: string) => void
-}
-
-function PendingPanel({ state, catalog, onApprove, onReject }: PendingPanelProps): ReactElement {
-  if (state.kind === 'loading') {
-    return (
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 text-sm text-slate-500">
-        <span className="animate-pulse">読み込み中…</span>
-      </div>
-    )
-  }
-  if (state.kind === 'error') {
-    return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
-        <p className="font-semibold">承認待ち一覧の取得に失敗しました</p>
-        <p className="mt-1 text-xs opacity-80">{state.message}</p>
-      </div>
-    )
-  }
-  if (state.items.length === 0) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
-        承認待ちはありません
-      </div>
-    )
-  }
-
-  const skillMap = new Map(catalog.map((s) => [s.id, s]))
-
-  return (
-    <div className="space-y-3">
-      {state.items.map((item) => (
-        <PendingCard
-          key={item.id}
-          item={item}
-          skillName={skillMap.get(toSkillMasterId(item.skillId))?.name ?? item.skillId}
-          onApprove={onApprove}
-          onReject={onReject}
-        />
-      ))}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PendingCard
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface PendingCardProps {
-  readonly item: EmployeeSkill
+interface SkillApproval {
+  readonly id: string
+  readonly employeeId: string
+  readonly employeeName: string
+  readonly departmentName: string
+  readonly avatarColor: string
+  readonly skillId: string
   readonly skillName: string
-  readonly onApprove: (id: string) => Promise<void>
-  readonly onReject: (id: string) => void
+  readonly currentLevel: number
+  readonly requestedLevel: number
+  readonly reason: string
+  readonly submittedAt: string
 }
 
-function PendingCard({ item, skillName, onApprove, onReject }: PendingCardProps): ReactElement {
-  const [approving, setApproving] = useState(false)
+type SkillManagementState =
+  | { readonly kind: 'loading' }
+  | {
+      readonly kind: 'ready'
+      readonly skills: readonly SkillMaster[]
+      readonly pendingApprovals: readonly SkillApproval[]
+    }
+  | { readonly kind: 'error'; readonly message: string }
 
-  async function handleApprove(): Promise<void> {
+// ─── Mock data ────────────────────────────────────────────────────────────────
+
+const MOCK_SKILLS: readonly SkillMaster[] = [
+  { id: 's1', name: 'TypeScript', description: '型付き JavaScript 開発', category: 'TECHNICAL', maxLevel: 5, holderCount: 142 },
+  { id: 's2', name: 'React', description: 'UIコンポーネントライブラリ', category: 'TECHNICAL', maxLevel: 5, holderCount: 118 },
+  { id: 's3', name: 'Next.js', description: 'React フルスタックフレームワーク', category: 'TECHNICAL', maxLevel: 5, holderCount: 87 },
+  { id: 's4', name: 'PostgreSQL', description: 'リレーショナルデータベース', category: 'TECHNICAL', maxLevel: 5, holderCount: 64 },
+  { id: 's5', name: 'Docker', description: 'コンテナ仮想化', category: 'TECHNICAL', maxLevel: 5, holderCount: 73 },
+  { id: 's6', name: 'AWS', description: 'クラウドインフラ', category: 'TECHNICAL', maxLevel: 5, holderCount: 91 },
+  { id: 's7', name: 'プロジェクト管理', description: 'スケジュール・リスク管理', category: 'MANAGEMENT', maxLevel: 4, holderCount: 56 },
+  { id: 's8', name: 'チームリーダーシップ', description: 'チームの方向性・育成', category: 'MANAGEMENT', maxLevel: 4, holderCount: 38 },
+  { id: 's9', name: '戦略立案', description: '事業戦略・施策企画', category: 'BUSINESS', maxLevel: 4, holderCount: 29 },
+  { id: 's10', name: '営業交渉', description: 'クライアント折衝・契約', category: 'BUSINESS', maxLevel: 5, holderCount: 47 },
+  { id: 's11', name: 'マーケティング分析', description: 'データ分析・施策評価', category: 'BUSINESS', maxLevel: 4, holderCount: 33 },
+  { id: 's12', name: '英語', description: 'ビジネス英語', category: 'LANGUAGE', maxLevel: 5, holderCount: 212 },
+  { id: 's13', name: '中国語', description: 'ビジネス中国語', category: 'LANGUAGE', maxLevel: 5, holderCount: 41 },
+  { id: 's14', name: 'ファシリテーション', description: '会議・ワークショップ進行', category: 'OTHER', maxLevel: 4, holderCount: 55 },
+]
+
+const MOCK_APPROVALS: readonly SkillApproval[] = [
+  {
+    id: 'ap1',
+    employeeId: 'e001',
+    employeeName: '田中 健太',
+    departmentName: '開発部',
+    avatarColor: 'bg-indigo-100 text-indigo-700',
+    skillId: 's1',
+    skillName: 'TypeScript',
+    currentLevel: 3,
+    requestedLevel: 4,
+    reason: 'プロジェクトで型安全な設計を主導し、チーム全体のコード品質向上に貢献しました。',
+    submittedAt: '2026-04-21T09:15:00',
+  },
+  {
+    id: 'ap2',
+    employeeId: 'e002',
+    employeeName: '佐藤 美咲',
+    departmentName: '営業部',
+    avatarColor: 'bg-emerald-100 text-emerald-700',
+    skillId: 's10',
+    skillName: '営業交渉',
+    currentLevel: 2,
+    requestedLevel: 3,
+    reason: '今期3件の大型契約を主導し、交渉スキルが前期比で大幅に向上しました。',
+    submittedAt: '2026-04-20T14:30:00',
+  },
+  {
+    id: 'ap3',
+    employeeId: 'e003',
+    employeeName: '鈴木 直人',
+    departmentName: 'インフラ部',
+    avatarColor: 'bg-sky-100 text-sky-700',
+    skillId: 's6',
+    skillName: 'AWS',
+    currentLevel: 3,
+    requestedLevel: 4,
+    reason: 'AWSソリューションアーキテクトProを取得し、マルチリージョン構成を実装しました。',
+    submittedAt: '2026-04-19T11:45:00',
+  },
+  {
+    id: 'ap4',
+    employeeId: 'e004',
+    employeeName: '山田 奈々',
+    departmentName: 'QA部',
+    avatarColor: 'bg-rose-100 text-rose-700',
+    skillId: 's7',
+    skillName: 'プロジェクト管理',
+    currentLevel: 1,
+    requestedLevel: 2,
+    reason: '複数の改善プロジェクトでサブリードを担当し、スケジュール管理を習得しました。',
+    submittedAt: '2026-04-18T16:00:00',
+  },
+]
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store', ...options })
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+function categoryLabel(cat: SkillCategory): string {
+  const labels: Record<SkillCategory, string> = {
+    TECHNICAL: '技術',
+    BUSINESS: 'ビジネス',
+    MANAGEMENT: 'マネジメント',
+    LANGUAGE: '語学',
+    OTHER: 'その他',
+  }
+  return labels[cat]
+}
+
+function categoryColor(cat: SkillCategory): string {
+  const colors: Record<SkillCategory, string> = {
+    TECHNICAL: 'bg-blue-100 text-blue-700',
+    BUSINESS: 'bg-amber-100 text-amber-700',
+    MANAGEMENT: 'bg-purple-100 text-purple-700',
+    LANGUAGE: 'bg-green-100 text-green-700',
+    OTHER: 'bg-gray-100 text-gray-600',
+  }
+  return colors[cat]
+}
+
+function formatSubmittedAt(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// ─── ApprovalCard ─────────────────────────────────────────────────────────────
+
+function ApprovalCard({
+  approval,
+  onApprove,
+  onReject,
+}: {
+  readonly approval: SkillApproval
+  readonly onApprove: (id: string) => Promise<void>
+  readonly onReject: (id: string) => Promise<void>
+}) {
+  const [approving, setApproving] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+
+  async function handleApprove() {
     setApproving(true)
     try {
-      await onApprove(item.id)
+      await onApprove(approval.id)
     } finally {
       setApproving(false)
     }
   }
 
-  const initials = item.userId.slice(0, 2).toUpperCase()
-  const acquiredDate = new Date(item.acquiredAt).toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+  async function handleReject() {
+    setRejecting(true)
+    try {
+      await onReject(approval.id)
+    } finally {
+      setRejecting(false)
+    }
+  }
+
+  const initials = approval.employeeName.replace(/\s/g, '').slice(0, 1)
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      {/* Applicant row */}
+    <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      {/* Applicant */}
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${approval.avatarColor}`}
+        >
           {initials}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-slate-900">{item.userId}</p>
-          <p className="text-xs text-slate-400">申告日: {acquiredDate}</p>
         </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">{approval.employeeName}</p>
+          <p className="text-xs text-gray-500">{approval.departmentName}</p>
+        </div>
+        <span className="text-xs text-gray-400">{formatSubmittedAt(approval.submittedAt)}</span>
       </div>
 
-      {/* Skill info */}
-      <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-        <span className="font-semibold text-slate-800">{skillName}</span>
-        <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
-          {levelLabel(item.level)}
+      {/* Skill + level */}
+      <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+        <span className="text-sm font-semibold text-gray-800">{approval.skillName}</span>
+        <span className="text-xs text-gray-400">
+          Lv{approval.currentLevel} →{' '}
+          <span className="font-bold text-indigo-600">Lv{approval.requestedLevel}</span>
         </span>
       </div>
+
+      {/* Reason */}
+      <p className="line-clamp-2 text-xs leading-relaxed text-gray-600">{approval.reason}</p>
 
       {/* Actions */}
-      <div className="mt-3 flex gap-2">
+      <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => onReject(item.id)}
-          className="flex-1 rounded-lg border border-slate-300 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          onClick={handleReject}
+          disabled={rejecting || approving}
+          className="flex-1 rounded-lg border border-rose-300 py-1.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50"
         >
-          差し戻し
+          {rejecting ? '処理中…' : '差し戻し'}
         </button>
         <button
           type="button"
-          disabled={approving}
           onClick={handleApprove}
-          className="flex-1 rounded-lg bg-indigo-600 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          disabled={approving || rejecting}
+          className="flex-1 rounded-lg bg-indigo-600 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
           {approving ? '処理中…' : '承認'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function SkillManagementPage() {
+  const [state, setState] = useState<SkillManagementState>({ kind: 'loading' })
+  const [categoryFilter, setCategoryFilter] = useState<SkillCategory | ''>('')
+  const [actionMessage, setActionMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const [skillsData, approvalsData] = await Promise.all([
+        fetchJson<SkillMaster[]>('/api/skills/catalog'),
+        fetchJson<SkillApproval[]>('/api/skills/approvals?status=PENDING'),
+      ])
+      setState({
+        kind: 'ready',
+        skills: skillsData ?? [...MOCK_SKILLS],
+        pendingApprovals: approvalsData ?? [...MOCK_APPROVALS],
+      })
+    }
+    void load()
+  }, [])
+
+  const handleApprove = useCallback(async (id: string) => {
+    await fetchJson<{ success: boolean }>(`/api/skills/approvals/${id}/approve`, {
+      method: 'POST',
+    })
+    setState((prev) =>
+      prev.kind === 'ready'
+        ? { ...prev, pendingApprovals: prev.pendingApprovals.filter((a) => a.id !== id) }
+        : prev
+    )
+    setActionMessage({ type: 'success', text: '申告を承認しました。' })
+  }, [])
+
+  const handleReject = useCallback(async (id: string) => {
+    await fetchJson<{ success: boolean }>(`/api/skills/approvals/${id}/reject`, {
+      method: 'POST',
+    })
+    setState((prev) =>
+      prev.kind === 'ready'
+        ? { ...prev, pendingApprovals: prev.pendingApprovals.filter((a) => a.id !== id) }
+        : prev
+    )
+    setActionMessage({ type: 'success', text: '差し戻しました。' })
+  }, [])
+
+  if (state.kind === 'loading') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="animate-pulse text-sm text-gray-400">読み込み中…</p>
+      </div>
+    )
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm text-rose-500">{state.message}</p>
+      </div>
+    )
+  }
+
+  const { skills, pendingApprovals } = state
+  const categoryOptions = Array.from(
+    new Set(skills.map((s) => s.category))
+  ).sort() as SkillCategory[]
+  const filteredSkills = categoryFilter
+    ? skills.filter((s) => s.category === categoryFilter)
+    : skills
+  const pendingCount = pendingApprovals.length
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+        {/* Page header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">スキル管理</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              スキルマスタの管理と申告の承認を行います
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            CSV 一括登録
+          </button>
+        </div>
+
+        {/* Action message */}
+        {actionMessage && (
+          <div
+            className={`rounded-lg border px-4 py-3 text-sm ${
+              actionMessage.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-rose-200 bg-rose-50 text-rose-800'
+            }`}
+          >
+            {actionMessage.text}
+          </div>
+        )}
+
+        {/* KPI Cards */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              登録済みスキル
+            </p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-gray-900">{skills.length}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-xs text-gray-500">{categoryOptions.length} カテゴリ</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                ＋3 今月追加
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500">
+              本人申告率
+            </p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-indigo-700">89.2%</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-xs text-indigo-500">1,113 / 1,248名</span>
+              <span className="rounded-full bg-indigo-200 px-2 py-0.5 text-[10px] font-semibold text-indigo-800">
+                ↑4.1pt 先月比
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+              上長承認待ち
+            </p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-amber-700">{pendingCount}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-xs text-amber-600">平均 2.1日</span>
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                  🔴 処理要
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Main 2-column layout */}
+        <div className="flex gap-5">
+          {/* Left: Skill Master Table */}
+          <section className="min-w-0 flex-1">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-gray-800">スキルマスタ</h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={categoryFilter}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                    setCategoryFilter(e.target.value as SkillCategory | '')
+                  }
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
+                >
+                  <option value="">すべてのカテゴリ</option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {categoryLabel(cat)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+                >
+                  ＋ スキルを追加
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500">
+                    <th className="px-4 py-3">スキル名</th>
+                    <th className="px-4 py-3">カテゴリ</th>
+                    <th className="px-4 py-3">最大レベル</th>
+                    <th className="px-4 py-3">保有者数</th>
+                    <th className="px-3 py-3 text-right">─</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredSkills.map((skill) => (
+                    <tr key={skill.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-900">{skill.name}</p>
+                        {skill.description && (
+                          <p className="mt-0.5 max-w-[220px] truncate text-xs text-gray-400">
+                            {skill.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor(skill.category)}`}
+                        >
+                          {categoryLabel(skill.category)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600">Lv{skill.maxLevel}</td>
+                      <td className="px-4 py-3 tabular-nums text-xs text-gray-700">
+                        {skill.holderCount}名
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <button
+                          type="button"
+                          className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100"
+                          title="編集"
+                        >
+                          ✏️
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredSkills.length === 0 && (
+                <div className="py-12 text-center text-sm text-gray-400">
+                  該当するスキルが見つかりませんでした
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Right: Pending Approvals */}
+          <aside className="w-80 shrink-0">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-800">承認待ち申告</h2>
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold tabular-nums text-white">
+                  {pendingCount}
+                </span>
+              )}
+            </div>
+
+            {pendingApprovals.length === 0 ? (
+              <div className="rounded-2xl border border-gray-200 bg-white py-12 text-center text-sm text-gray-400">
+                承認待ちはありません
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingApprovals.map((approval) => (
+                  <ApprovalCard
+                    key={approval.id}
+                    approval={approval}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                  />
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
     </div>
   )
