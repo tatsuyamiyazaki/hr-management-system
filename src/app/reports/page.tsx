@@ -1,522 +1,377 @@
-/**
- * Issue #200: レポート画面
- *
- * - レポートタイプカード × 4
- * - 評価完了率 — 部署別横棒グラフ（CSS ベース、API 未実装時はモックデータ）
- * - 定期配信レポート一覧テーブル
- *
- * GET /api/reports/summary               — 保存済み件数・配信件数
- * GET /api/reports/evaluation-completion — 部署別評価完了率
- * GET /api/reports/schedules             — 定期配信一覧
- */
 'use client'
 
-import { useEffect, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent, type ReactElement } from 'react'
+import { REPORT_CARDS } from '@/lib/reports/report-data'
+import type {
+  DepartmentCompletion,
+  FrequencyType,
+  ReportInsight,
+  ReportSchedule,
+  ReportType,
+} from '@/lib/reports/report-types'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+type ReportState =
+  | { kind: 'loading' }
+  | {
+      kind: 'ready'
+      selectedReport: ReportType
+      chartData: readonly DepartmentCompletion[]
+      schedules: readonly ReportSchedule[]
+    }
+  | { kind: 'error'; message: string }
 
-interface ApiEnvelope<T> {
-  readonly success?: boolean
-  readonly data?: T
-  readonly error?: string
+interface EvaluationSummaryPayload {
+  readonly chartData?: readonly DepartmentCompletion[]
 }
 
-interface ReportSummary {
-  readonly savedCount: number
-  readonly scheduleCount: number
+interface SchedulesPayload {
+  readonly schedules?: readonly ReportSchedule[]
 }
 
-interface DeptCompletion {
-  readonly departmentName: string
-  readonly rate: number // 0–100
+const PERIODS = [
+  { value: '2026-Q1', label: '2026 Q1' },
+  { value: '2025-Q4', label: '2025 Q4' },
+  { value: '2025-Q3', label: '2025 Q3' },
+] as const
+
+const EMPTY_INSIGHT: ReportInsight = {
+  reportType: 'GOAL_ACHIEVEMENT',
+  title: '',
+  metrics: [],
 }
 
-interface EvaluationCompletion {
-  readonly period: string
-  readonly departments: readonly DeptCompletion[]
+const FREQUENCY_LABELS: Record<FrequencyType, string> = {
+  WEEKLY: '毎週',
+  MONTHLY: '毎月',
+  QUARTERLY: '四半期',
 }
 
-interface ReportSchedule {
-  readonly id: string
-  readonly name: string
-  readonly recipients: readonly string[]
-  readonly frequency: 'daily' | 'weekly' | 'monthly'
-  readonly nextDeliveryAt: string // ISO 8601
+const CARD_ACCENTS: Record<ReportType, string> = {
+  EVALUATION_SUMMARY: 'border-indigo-200 bg-indigo-50/40',
+  GOAL_ACHIEVEMENT: 'border-emerald-200 bg-emerald-50/40',
+  SKILL_DISTRIBUTION: 'border-cyan-200 bg-cyan-50/40',
+  ATTRITION_RISK: 'border-rose-200 bg-rose-50/40',
 }
 
-type SummaryState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly summary: ReportSummary }
-
-type CompletionState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly data: EvaluationCompletion }
-
-type ScheduleState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly schedules: readonly ReportSchedule[] }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mock data (API 未実装時のフォールバック)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const MOCK_SUMMARY: ReportSummary = { savedCount: 12, scheduleCount: 4 }
-
-const MOCK_COMPLETION: EvaluationCompletion = {
-  period: '2025年度 上半期',
-  departments: [
-    { departmentName: '開発部', rate: 95 },
-    { departmentName: '営業部', rate: 72 },
-    { departmentName: '人事部', rate: 88 },
-    { departmentName: 'マーケティング部', rate: 60 },
-    { departmentName: '経理部', rate: 100 },
-    { departmentName: 'カスタマーサポート', rate: 78 },
-  ],
+const REPORT_API: Record<Exclude<ReportType, 'EVALUATION_SUMMARY'>, string> = {
+  GOAL_ACHIEVEMENT: '/api/reports/goal-achievement',
+  SKILL_DISTRIBUTION: '/api/reports/skill-distribution',
+  ATTRITION_RISK: '/api/reports/attrition-risk',
 }
 
-const MOCK_SCHEDULES: readonly ReportSchedule[] = [
-  {
-    id: '1',
-    name: '月次評価サマリ',
-    recipients: ['hr@example.com', 'ceo@example.com'],
-    frequency: 'monthly',
-    nextDeliveryAt: '2026-05-01T09:00:00',
-  },
-  {
-    id: '2',
-    name: '週次スキル分布レポート',
-    recipients: ['manager@example.com'],
-    frequency: 'weekly',
-    nextDeliveryAt: '2026-04-28T08:00:00',
-  },
-  {
-    id: '3',
-    name: '目標進捗レポート',
-    recipients: ['team-lead@example.com'],
-    frequency: 'monthly',
-    nextDeliveryAt: '2026-05-01T10:00:00',
-  },
-  {
-    id: '4',
-    name: '離職リスクアラート',
-    recipients: ['hr@example.com'],
-    frequency: 'weekly',
-    nextDeliveryAt: '2026-04-25T09:00:00',
-  },
-]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Report type card definitions
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface ReportTypeCard {
-  readonly title: string
-  readonly subtitle: string
-  readonly icon: string
-  readonly accent: string
-  readonly iconBg: string
+function readError(error: unknown): string {
+  return error instanceof Error ? error.message : 'レポートデータの取得に失敗しました'
 }
 
-const REPORT_TYPES: readonly ReportTypeCard[] = [
-  {
-    title: '評価サマリ',
-    subtitle: '完了率・分布・偏差',
-    icon: '📊',
-    accent: 'border-indigo-200 hover:border-indigo-400',
-    iconBg: 'bg-indigo-50',
-  },
-  {
-    title: '目標達成レポート',
-    subtitle: 'OKR / MBO 別',
-    icon: '🎯',
-    accent: 'border-emerald-200 hover:border-emerald-400',
-    iconBg: 'bg-emerald-50',
-  },
-  {
-    title: 'スキル分布',
-    subtitle: '部署×カテゴリ',
-    icon: '🧩',
-    accent: 'border-violet-200 hover:border-violet-400',
-    iconBg: 'bg-violet-50',
-  },
-  {
-    title: '離職リスク',
-    subtitle: 'AI 予測',
-    icon: '⚠️',
-    accent: 'border-amber-200 hover:border-amber-400',
-    iconBg: 'bg-amber-50',
-  },
-]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url, { cache: 'no-store' })
-    const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T>
-    if (!res.ok || !envelope.data) return null
-    return envelope.data
-  } catch {
-    return null
-  }
+function completionColor(status: DepartmentCompletion['status']): string {
+  if (status === 'DONE') return 'bg-indigo-600'
+  if (status === 'COMPLETE') return 'bg-emerald-500'
+  return 'bg-orange-500'
 }
 
-function barColor(rate: number): string {
-  if (rate === 100) return 'bg-emerald-500'
-  if (rate >= 80) return 'bg-indigo-600'
-  return 'bg-amber-500'
-}
-
-function barLabel(rate: number): string {
-  if (rate === 100) return '完了'
-  if (rate >= 80) return '達成'
+function statusLabel(status: DepartmentCompletion['status']): string {
+  if (status === 'DONE') return '完了済'
+  if (status === 'COMPLETE') return '完了'
   return '要注意'
 }
 
-function barLabelColor(rate: number): string {
-  if (rate === 100) return 'text-emerald-700'
-  if (rate >= 80) return 'text-indigo-700'
-  return 'text-amber-700'
+function buildExportUrl(type: ReportType): string {
+  const params = new URLSearchParams({ type, format: 'pdf' })
+  return `/api/reports/export?${params.toString()}`
 }
-
-function frequencyLabel(freq: ReportSchedule['frequency']): string {
-  if (freq === 'daily') return '毎日'
-  if (freq === 'weekly') return '毎週'
-  return '毎月'
-}
-
-function frequencyColor(freq: ReportSchedule['frequency']): string {
-  if (freq === 'daily') return 'bg-rose-100 text-rose-700'
-  if (freq === 'weekly') return 'bg-indigo-100 text-indigo-700'
-  return 'bg-emerald-100 text-emerald-700'
-}
-
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('ja-JP', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage(): ReactElement {
-  const [summaryState, setSummaryState] = useState<SummaryState>({ kind: 'loading' })
-  const [completionState, setCompletionState] = useState<CompletionState>({ kind: 'loading' })
-  const [scheduleState, setScheduleState] = useState<ScheduleState>({ kind: 'loading' })
+  const [state, setState] = useState<ReportState>({ kind: 'loading' })
+  const [selectedReport, setSelectedReport] = useState<ReportType>('EVALUATION_SUMMARY')
+  const [period, setPeriod] = useState('2026-Q1')
+  const [insight, setInsight] = useState<ReportInsight>(EMPTY_INSIGHT)
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     void (async () => {
-      const summary = await fetchJson<ReportSummary>('/api/reports/summary')
-      if (!cancelled) {
-        setSummaryState({ kind: 'ready', summary: summary ?? MOCK_SUMMARY })
-      }
+      setState({ kind: 'loading' })
+      try {
+        const [summaryResponse, schedulesResponse] = await Promise.all([
+          fetch(`/api/reports/evaluation-summary?period=${encodeURIComponent(period)}`, {
+            cache: 'no-store',
+          }),
+          fetch('/api/reports/schedules', { cache: 'no-store' }),
+        ])
+        const summaryPayload = (await summaryResponse.json().catch(() => ({}))) as
+          | EvaluationSummaryPayload
+          | undefined
+        const schedulesPayload = (await schedulesResponse.json().catch(() => ({}))) as
+          | SchedulesPayload
+          | undefined
 
-      const completion = await fetchJson<EvaluationCompletion>(
-        '/api/reports/evaluation-completion',
-      )
-      if (!cancelled) {
-        setCompletionState({ kind: 'ready', data: completion ?? MOCK_COMPLETION })
-      }
+        if (!summaryResponse.ok) throw new Error(`HTTP ${summaryResponse.status}`)
+        if (!schedulesResponse.ok) throw new Error(`HTTP ${schedulesResponse.status}`)
 
-      const schedules = await fetchJson<ReportSchedule[]>('/api/reports/schedules')
-      if (!cancelled) {
-        setScheduleState({
-          kind: 'ready',
-          schedules: Array.isArray(schedules) ? schedules : MOCK_SCHEDULES,
-        })
+        if (!cancelled) {
+          setState({
+            kind: 'ready',
+            selectedReport,
+            chartData: summaryPayload?.chartData ?? [],
+            schedules: schedulesPayload?.schedules ?? [],
+          })
+        }
+      } catch (error) {
+        if (!cancelled) setState({ kind: 'error', message: readError(error) })
       }
     })()
 
     return () => {
       cancelled = true
     }
+  }, [period, selectedReport])
+
+  useEffect(() => {
+    if (selectedReport === 'EVALUATION_SUMMARY') return
+    let cancelled = false
+
+    void (async () => {
+      const endpoint = REPORT_API[selectedReport]
+      const url =
+        selectedReport === 'GOAL_ACHIEVEMENT'
+          ? `${endpoint}?period=${encodeURIComponent(period)}`
+          : endpoint
+      const response = await fetch(url, { cache: 'no-store' })
+      const payload = (await response.json().catch(() => EMPTY_INSIGHT)) as ReportInsight
+      if (!cancelled && response.ok) setInsight(payload)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [period, selectedReport])
+
+  const schedules = state.kind === 'ready' ? state.schedules : []
+  const chartData = state.kind === 'ready' ? state.chartData : []
+
+  const handlePeriodChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setPeriod(event.target.value)
   }, [])
 
-  const savedCount =
-    summaryState.kind === 'ready' ? summaryState.summary.savedCount : MOCK_SUMMARY.savedCount
-  const scheduleCount =
-    summaryState.kind === 'ready' ? summaryState.summary.scheduleCount : MOCK_SUMMARY.scheduleCount
+  const handleEditSchedule = useCallback(async (schedule: ReportSchedule) => {
+    setEditingScheduleId(schedule.id)
+    await fetch(`/api/reports/schedules/${schedule.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ nextDelivery: schedule.nextDelivery }),
+    })
+    setEditingScheduleId(null)
+  }, [])
 
   return (
-    <main className="mx-auto max-w-7xl px-8 py-10">
-      {/* Header */}
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.3em] text-indigo-600 uppercase">
-            Reports
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">レポート</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            保存済み{' '}
-            <span className="font-semibold text-slate-900 tabular-nums">{savedCount}</span>{' '}
-            件・定期配信{' '}
-            <span className="font-semibold text-slate-900 tabular-nums">{scheduleCount}</span> 件
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-indigo-600">Reports</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight">レポート</h1>
+          </div>
+          <a
+            href={buildExportUrl(selectedReport)}
+            className="inline-flex h-10 w-fit items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            定期配信
-          </button>
-          <button
-            type="button"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-          >
-            ＋ レポート作成
-          </button>
-        </div>
-      </header>
+            PDFダウンロード
+          </a>
+        </header>
 
-      {/* Report Type Cards */}
-      <section className="mb-8">
-        <p className="mb-4 text-sm font-semibold text-slate-700">レポートタイプ</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {REPORT_TYPES.map((card) => (
-            <ReportTypeCardView key={card.title} card={card} />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {REPORT_CARDS.map((card) => (
+            <button
+              key={card.type}
+              type="button"
+              onClick={() => setSelectedReport(card.type)}
+              className={`flex min-h-40 flex-col justify-between rounded-lg border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                selectedReport === card.type
+                  ? `${CARD_ACCENTS[card.type]} ring-2 ring-indigo-200`
+                  : 'border-slate-200'
+              }`}
+            >
+              <span>
+                <span className="text-lg font-semibold text-slate-950">{card.title}</span>
+                <span className="mt-2 block text-sm leading-6 text-slate-600">
+                  {card.description}
+                </span>
+              </span>
+              <span className="mt-5 inline-flex h-9 w-fit items-center rounded-md bg-indigo-600 px-3 text-sm font-semibold text-white">
+                レポートを見る
+              </span>
+            </button>
           ))}
-        </div>
-      </section>
+        </section>
 
-      {/* Evaluation Completion Chart */}
-      <section className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <CompletionChartPanel state={completionState} />
-      </section>
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {selectedReport === 'EVALUATION_SUMMARY' ? '評価完了率' : insight.title}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedReport === 'EVALUATION_SUMMARY'
+                  ? '部署別に評価提出の進捗を確認します'
+                  : '選択したレポートの主要指標です'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={period}
+                onChange={handlePeriodChange}
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                aria-label="期間フィルタ"
+              >
+                {PERIODS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <a
+                href={buildExportUrl(selectedReport)}
+                className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                PDFダウンロード
+              </a>
+            </div>
+          </div>
 
-      {/* Schedule List */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <SchedulePanel state={scheduleState} />
-      </section>
+          <div className="p-5">
+            {state.kind === 'loading' && (
+              <div className="py-16 text-center text-sm text-slate-500">読み込み中...</div>
+            )}
+            {state.kind === 'error' && (
+              <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                {state.message}
+              </div>
+            )}
+            {state.kind === 'ready' && selectedReport === 'EVALUATION_SUMMARY' && (
+              <CompletionChart rows={chartData} />
+            )}
+            {state.kind === 'ready' && selectedReport !== 'EVALUATION_SUMMARY' && (
+              <InsightPanel insight={insight} />
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-semibold">定期配信レポート</h2>
+          </div>
+          <ScheduleTable
+            schedules={schedules}
+            editingScheduleId={editingScheduleId}
+            onEdit={handleEditSchedule}
+          />
+        </section>
+      </div>
     </main>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ReportTypeCardView
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ReportTypeCardView({ card }: { readonly card: ReportTypeCard }): ReactElement {
+function CompletionChart({
+  rows,
+}: {
+  readonly rows: readonly DepartmentCompletion[]
+}): ReactElement {
   return (
-    <button
-      type="button"
-      className={`group flex cursor-pointer items-start gap-3 rounded-2xl border bg-white p-5 shadow-sm transition-all hover:shadow-md ${card.accent}`}
-    >
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl ${card.iconBg}`}
-      >
-        {card.icon}
-      </span>
-      <div className="min-w-0 text-left">
-        <p className="font-semibold text-slate-900">{card.title}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{card.subtitle}</p>
-      </div>
-      <span className="ml-auto shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">
-        →
-      </span>
-    </button>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CompletionChartPanel
-// ─────────────────────────────────────────────────────────────────────────────
-
-function CompletionChartPanel({ state }: { readonly state: CompletionState }): ReactElement {
-  const period = state.kind === 'ready' ? state.data.period : MOCK_COMPLETION.period
-
-  return (
-    <div>
-      {/* Panel header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-        <p className="font-semibold text-slate-900">
-          評価完了率 — 部署別（{period}）
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            期間フィルタ ▾
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            PDF 出力
-          </button>
-        </div>
-      </div>
-
-      {/* Chart body */}
-      <div className="p-6">
-        {state.kind === 'loading' && (
-          <div className="flex items-center justify-center py-12 text-sm text-slate-400">
-            <span className="animate-pulse">読み込み中…</span>
-          </div>
-        )}
-        {state.kind === 'error' && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-            {state.message}
-          </div>
-        )}
-        {state.kind === 'ready' && (
-          <div className="space-y-3">
-            {state.data.departments.map((dept) => (
-              <CompletionBar key={dept.departmentName} dept={dept} />
-            ))}
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-indigo-600" />
-            達成
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-amber-500" />
-            {'要注意（< 80%）'}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-emerald-500" />
-            完了
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CompletionBar({ dept }: { readonly dept: DeptCompletion }): ReactElement {
-  return (
-    <div className="flex items-center gap-3">
-      {/* Department name */}
-      <p className="w-36 shrink-0 truncate text-right text-xs text-slate-600">
-        {dept.departmentName}
-      </p>
-
-      {/* Bar track */}
-      <div className="relative h-6 flex-1 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-all ${barColor(dept.rate)}`}
-          style={{ width: `${dept.rate}%` }}
-        />
-      </div>
-
-      {/* Rate + label */}
-      <div className="flex w-20 shrink-0 items-center gap-1.5">
-        <span className="tabular-nums text-sm font-semibold text-slate-900">{dept.rate}%</span>
-        <span className={`text-xs font-medium ${barLabelColor(dept.rate)}`}>
-          {barLabel(dept.rate)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SchedulePanel
-// ─────────────────────────────────────────────────────────────────────────────
-
-function SchedulePanel({ state }: { readonly state: ScheduleState }): ReactElement {
-  return (
-    <div>
-      <div className="border-b border-slate-200 px-6 py-4">
-        <p className="font-semibold text-slate-900">定期配信レポート</p>
-      </div>
-
-      {state.kind === 'loading' && (
-        <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-          <span className="animate-pulse">読み込み中…</span>
-        </div>
-      )}
-
-      {state.kind === 'error' && (
-        <div className="m-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          {state.message}
-        </div>
-      )}
-
-      {state.kind === 'ready' && state.schedules.length === 0 && (
-        <div className="py-16 text-center text-sm text-slate-400">
-          定期配信レポートが登録されていません
-        </div>
-      )}
-
-      {state.kind === 'ready' && state.schedules.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <th className="px-6 py-3 text-left">レポート名</th>
-                <th className="px-6 py-3 text-left">配信先</th>
-                <th className="px-6 py-3 text-left">頻度</th>
-                <th className="px-6 py-3 text-left">次回配信</th>
-                <th className="px-6 py-3 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {state.schedules.map((schedule) => (
-                <ScheduleRow key={schedule.id} schedule={schedule} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ScheduleRow({ schedule }: { readonly schedule: ReportSchedule }): ReactElement {
-  return (
-    <tr className="hover:bg-slate-50">
-      <td className="px-6 py-4 font-medium text-slate-900">{schedule.name}</td>
-      <td className="px-6 py-4">
-        <div className="flex flex-wrap gap-1">
-          {schedule.recipients.map((r) => (
-            <span
-              key={r}
-              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+    <div className="space-y-4">
+      {rows.map((row) => (
+        <div key={row.departmentName} className="grid gap-2 sm:grid-cols-[160px_1fr_96px]">
+          <p className="text-sm font-medium text-slate-700 sm:text-right">{row.departmentName}</p>
+          <div className="h-8 overflow-hidden rounded-md bg-slate-100">
+            <div
+              className={`flex h-full items-center justify-end rounded-md px-3 text-xs font-semibold text-white ${completionColor(row.status)}`}
+              style={{ width: `${row.completionRate}%` }}
             >
-              {r}
-            </span>
-          ))}
+              {row.completionRate}%
+            </div>
+          </div>
+          <p className="text-sm font-semibold text-slate-700">{statusLabel(row.status)}</p>
         </div>
-      </td>
-      <td className="px-6 py-4">
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${frequencyColor(schedule.frequency)}`}
-        >
-          {frequencyLabel(schedule.frequency)}
-        </span>
-      </td>
-      <td className="px-6 py-4 tabular-nums text-slate-700">
-        {formatDateTime(schedule.nextDeliveryAt)}
-      </td>
-      <td className="px-6 py-4 text-right">
-        <button
-          type="button"
-          className="rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          編集
-        </button>
-      </td>
-    </tr>
+      ))}
+      <div className="flex flex-wrap gap-4 pt-2 text-xs text-slate-500">
+        <LegendItem color="bg-emerald-500" label="完了 80%以上" />
+        <LegendItem color="bg-orange-500" label="要注意 80%未満" />
+        <LegendItem color="bg-indigo-600" label="完了済 100%" />
+      </div>
+    </div>
+  )
+}
+
+function LegendItem({ color, label }: { readonly color: string; readonly label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`h-3 w-3 rounded-sm ${color}`} />
+      {label}
+    </span>
+  )
+}
+
+function InsightPanel({ insight }: { readonly insight: ReportInsight }): ReactElement {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      {insight.metrics.map((metric) => (
+        <div key={metric.label} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">{metric.label}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{metric.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+interface ScheduleTableProps {
+  readonly schedules: readonly ReportSchedule[]
+  readonly editingScheduleId: string | null
+  readonly onEdit: (schedule: ReportSchedule) => void
+}
+
+function ScheduleTable({ schedules, editingScheduleId, onEdit }: ScheduleTableProps): ReactElement {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+          <tr>
+            <th className="px-5 py-3">レポート名</th>
+            <th className="px-5 py-3">配信先</th>
+            <th className="px-5 py-3">頻度</th>
+            <th className="px-5 py-3">次回配信</th>
+            <th className="w-16 px-5 py-3 text-right">-</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {schedules.map((schedule) => (
+            <tr key={schedule.id} className="hover:bg-slate-50">
+              <td className="px-5 py-4 font-medium text-slate-900">{schedule.reportName}</td>
+              <td className="px-5 py-4 text-slate-600">{schedule.recipients}</td>
+              <td className="px-5 py-4">
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                  {FREQUENCY_LABELS[schedule.frequency]}
+                </span>
+              </td>
+              <td className="px-5 py-4 font-mono text-xs text-slate-600">
+                {schedule.nextDelivery}
+              </td>
+              <td className="px-5 py-4 text-right">
+                <button
+                  type="button"
+                  onClick={() => onEdit(schedule)}
+                  disabled={editingScheduleId === schedule.id}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                  aria-label={`${schedule.reportName}を編集`}
+                  title="編集"
+                >
+                  ✎
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
