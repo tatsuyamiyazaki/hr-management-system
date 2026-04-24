@@ -12,6 +12,8 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactElement } from 'react'
+import { normalizeSkillHeatmapData } from '@/lib/skill/skill-map-heatmap'
+import type { SkillMapHeatmapCell, SkillMapHeatmapData } from '@/lib/skill/skill-map-heatmap'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -23,18 +25,8 @@ interface ApiEnvelope<T> {
   readonly error?: string
 }
 
-interface HeatmapCell {
-  readonly team: string
-  readonly category: string
-  readonly fulfillmentRate: number // 0–100
-}
-
-interface SkillHeatmapData {
-  readonly teams: readonly string[]
-  readonly categories: readonly string[]
-  readonly cells: readonly HeatmapCell[]
-  readonly totalMembers: number
-}
+type HeatmapCell = SkillMapHeatmapCell
+type SkillHeatmapData = SkillMapHeatmapData
 
 interface RecruitmentAlert {
   readonly id: string
@@ -45,7 +37,7 @@ interface RecruitmentAlert {
 
 interface RadarAxis {
   readonly axis: string
-  readonly current: number    // 0–100
+  readonly current: number // 0–100
   readonly targetRole: number // 0–100（希望役職要件）
 }
 
@@ -78,30 +70,30 @@ const MOCK_TEAMS = ['検索チーム', 'モバイルチーム', 'プラットフ
 const MOCK_CATEGORIES = ['BACKEND', 'FRONTEND', 'DATA', 'INFRA', 'DESIGN', 'PM'] as const
 
 const MOCK_CELLS: readonly HeatmapCell[] = [
-  { team: '検索チーム',      category: 'BACKEND',  fulfillmentRate: 95 },
-  { team: '検索チーム',      category: 'FRONTEND', fulfillmentRate: 60 },
-  { team: '検索チーム',      category: 'DATA',     fulfillmentRate: 85 },
-  { team: '検索チーム',      category: 'INFRA',    fulfillmentRate: 70 },
-  { team: '検索チーム',      category: 'DESIGN',   fulfillmentRate: 45 },
-  { team: '検索チーム',      category: 'PM',       fulfillmentRate: 65 },
-  { team: 'モバイルチーム',  category: 'BACKEND',  fulfillmentRate: 50 },
-  { team: 'モバイルチーム',  category: 'FRONTEND', fulfillmentRate: 92 },
-  { team: 'モバイルチーム',  category: 'DATA',     fulfillmentRate: 55 },
-  { team: 'モバイルチーム',  category: 'INFRA',    fulfillmentRate: 40 },
-  { team: 'モバイルチーム',  category: 'DESIGN',   fulfillmentRate: 80 },
-  { team: 'モバイルチーム',  category: 'PM',       fulfillmentRate: 58 },
-  { team: 'プラットフォーム', category: 'BACKEND',  fulfillmentRate: 88 },
+  { team: '検索チーム', category: 'BACKEND', fulfillmentRate: 95 },
+  { team: '検索チーム', category: 'FRONTEND', fulfillmentRate: 60 },
+  { team: '検索チーム', category: 'DATA', fulfillmentRate: 85 },
+  { team: '検索チーム', category: 'INFRA', fulfillmentRate: 70 },
+  { team: '検索チーム', category: 'DESIGN', fulfillmentRate: 45 },
+  { team: '検索チーム', category: 'PM', fulfillmentRate: 65 },
+  { team: 'モバイルチーム', category: 'BACKEND', fulfillmentRate: 50 },
+  { team: 'モバイルチーム', category: 'FRONTEND', fulfillmentRate: 92 },
+  { team: 'モバイルチーム', category: 'DATA', fulfillmentRate: 55 },
+  { team: 'モバイルチーム', category: 'INFRA', fulfillmentRate: 40 },
+  { team: 'モバイルチーム', category: 'DESIGN', fulfillmentRate: 80 },
+  { team: 'モバイルチーム', category: 'PM', fulfillmentRate: 58 },
+  { team: 'プラットフォーム', category: 'BACKEND', fulfillmentRate: 88 },
   { team: 'プラットフォーム', category: 'FRONTEND', fulfillmentRate: 42 },
-  { team: 'プラットフォーム', category: 'DATA',     fulfillmentRate: 65 },
-  { team: 'プラットフォーム', category: 'INFRA',    fulfillmentRate: 95 },
-  { team: 'プラットフォーム', category: 'DESIGN',   fulfillmentRate: 35 },
-  { team: 'プラットフォーム', category: 'PM',       fulfillmentRate: 70 },
-  { team: 'AIリサーチ',     category: 'BACKEND',  fulfillmentRate: 72 },
-  { team: 'AIリサーチ',     category: 'FRONTEND', fulfillmentRate: 38 },
-  { team: 'AIリサーチ',     category: 'DATA',     fulfillmentRate: 96 },
-  { team: 'AIリサーチ',     category: 'INFRA',    fulfillmentRate: 60 },
-  { team: 'AIリサーチ',     category: 'DESIGN',   fulfillmentRate: 30 },
-  { team: 'AIリサーチ',     category: 'PM',       fulfillmentRate: 55 },
+  { team: 'プラットフォーム', category: 'DATA', fulfillmentRate: 65 },
+  { team: 'プラットフォーム', category: 'INFRA', fulfillmentRate: 95 },
+  { team: 'プラットフォーム', category: 'DESIGN', fulfillmentRate: 35 },
+  { team: 'プラットフォーム', category: 'PM', fulfillmentRate: 70 },
+  { team: 'AIリサーチ', category: 'BACKEND', fulfillmentRate: 72 },
+  { team: 'AIリサーチ', category: 'FRONTEND', fulfillmentRate: 38 },
+  { team: 'AIリサーチ', category: 'DATA', fulfillmentRate: 96 },
+  { team: 'AIリサーチ', category: 'INFRA', fulfillmentRate: 60 },
+  { team: 'AIリサーチ', category: 'DESIGN', fulfillmentRate: 30 },
+  { team: 'AIリサーチ', category: 'PM', fulfillmentRate: 55 },
 ]
 
 const MOCK_HEATMAP: SkillHeatmapData = {
@@ -112,60 +104,60 @@ const MOCK_HEATMAP: SkillHeatmapData = {
 }
 
 const MOCK_ALERTS: readonly RecruitmentAlert[] = [
-  { id: 'a1', team: '検索チーム',      category: 'DESIGN',   shortfall: 3 },
-  { id: 'a2', team: 'モバイルチーム',  category: 'INFRA',    shortfall: 2 },
-  { id: 'a3', team: 'プラットフォーム', category: 'DESIGN',   shortfall: 4 },
-  { id: 'a4', team: 'AIリサーチ',     category: 'DESIGN',   shortfall: 2 },
-  { id: 'a5', team: 'AIリサーチ',     category: 'FRONTEND', shortfall: 1 },
+  { id: 'a1', team: '検索チーム', category: 'DESIGN', shortfall: 3 },
+  { id: 'a2', team: 'モバイルチーム', category: 'INFRA', shortfall: 2 },
+  { id: 'a3', team: 'プラットフォーム', category: 'DESIGN', shortfall: 4 },
+  { id: 'a4', team: 'AIリサーチ', category: 'DESIGN', shortfall: 2 },
+  { id: 'a5', team: 'AIリサーチ', category: 'FRONTEND', shortfall: 1 },
 ]
 
 const MOCK_RADAR_BY_TEAM: Readonly<Record<string, RadarData>> = {
-  '検索チーム': {
+  検索チーム: {
     userId: 'usr-search-01',
     userName: '田中 一郎（検索チーム）',
     axes: [
-      { axis: 'Backend',  current: 90, targetRole: 90 },
+      { axis: 'Backend', current: 90, targetRole: 90 },
       { axis: 'Frontend', current: 58, targetRole: 70 },
-      { axis: 'Data',     current: 82, targetRole: 85 },
-      { axis: 'Infra',    current: 68, targetRole: 75 },
-      { axis: 'Design',   current: 42, targetRole: 60 },
-      { axis: 'PM',       current: 62, targetRole: 70 },
+      { axis: 'Data', current: 82, targetRole: 85 },
+      { axis: 'Infra', current: 68, targetRole: 75 },
+      { axis: 'Design', current: 42, targetRole: 60 },
+      { axis: 'PM', current: 62, targetRole: 70 },
     ],
   },
-  'モバイルチーム': {
+  モバイルチーム: {
     userId: 'usr-mobile-01',
     userName: '鈴木 花子（モバイルチーム）',
     axes: [
-      { axis: 'Backend',  current: 48, targetRole: 60 },
+      { axis: 'Backend', current: 48, targetRole: 60 },
       { axis: 'Frontend', current: 88, targetRole: 85 },
-      { axis: 'Data',     current: 52, targetRole: 60 },
-      { axis: 'Infra',    current: 38, targetRole: 55 },
-      { axis: 'Design',   current: 78, targetRole: 80 },
-      { axis: 'PM',       current: 55, targetRole: 65 },
+      { axis: 'Data', current: 52, targetRole: 60 },
+      { axis: 'Infra', current: 38, targetRole: 55 },
+      { axis: 'Design', current: 78, targetRole: 80 },
+      { axis: 'PM', current: 55, targetRole: 65 },
     ],
   },
-  'プラットフォーム': {
+  プラットフォーム: {
     userId: 'usr-platform-01',
     userName: '佐藤 次郎（プラットフォーム）',
     axes: [
-      { axis: 'Backend',  current: 85, targetRole: 90 },
+      { axis: 'Backend', current: 85, targetRole: 90 },
       { axis: 'Frontend', current: 40, targetRole: 50 },
-      { axis: 'Data',     current: 62, targetRole: 70 },
-      { axis: 'Infra',    current: 92, targetRole: 90 },
-      { axis: 'Design',   current: 32, targetRole: 50 },
-      { axis: 'PM',       current: 68, targetRole: 75 },
+      { axis: 'Data', current: 62, targetRole: 70 },
+      { axis: 'Infra', current: 92, targetRole: 90 },
+      { axis: 'Design', current: 32, targetRole: 50 },
+      { axis: 'PM', current: 68, targetRole: 75 },
     ],
   },
-  'AIリサーチ': {
+  AIリサーチ: {
     userId: 'usr-ai-01',
     userName: '山田 美咲（AIリサーチ）',
     axes: [
-      { axis: 'Backend',  current: 70, targetRole: 75 },
+      { axis: 'Backend', current: 70, targetRole: 75 },
       { axis: 'Frontend', current: 35, targetRole: 45 },
-      { axis: 'Data',     current: 94, targetRole: 95 },
-      { axis: 'Infra',    current: 58, targetRole: 65 },
-      { axis: 'Design',   current: 28, targetRole: 45 },
-      { axis: 'PM',       current: 52, targetRole: 60 },
+      { axis: 'Data', current: 94, targetRole: 95 },
+      { axis: 'Infra', current: 58, targetRole: 65 },
+      { axis: 'Design', current: 28, targetRole: 45 },
+      { axis: 'PM', current: 52, targetRole: 60 },
     ],
   },
 }
@@ -174,12 +166,12 @@ const DEFAULT_RADAR: RadarData = {
   userId: 'usr-default',
   userName: 'ユーザー',
   axes: [
-    { axis: 'Backend',  current: 70, targetRole: 80 },
+    { axis: 'Backend', current: 70, targetRole: 80 },
     { axis: 'Frontend', current: 55, targetRole: 70 },
-    { axis: 'Data',     current: 65, targetRole: 75 },
-    { axis: 'Infra',    current: 60, targetRole: 70 },
-    { axis: 'Design',   current: 45, targetRole: 60 },
-    { axis: 'PM',       current: 58, targetRole: 68 },
+    { axis: 'Data', current: 65, targetRole: 75 },
+    { axis: 'Infra', current: 60, targetRole: 70 },
+    { axis: 'Design', current: 45, targetRole: 60 },
+    { axis: 'PM', current: 58, targetRole: 68 },
   ],
 }
 
@@ -259,16 +251,34 @@ function RadarChart({ axes }: { readonly axes: readonly RadarAxis[] }): ReactEle
   const gridPcts = [20, 40, 60, 80, 100] as const
 
   return (
-    <svg viewBox="0 0 300 300" className="mx-auto w-full max-w-[260px]" aria-label="スキルレーダーチャート">
+    <svg
+      viewBox="0 0 300 300"
+      className="mx-auto w-full max-w-[260px]"
+      aria-label="スキルレーダーチャート"
+    >
       {/* Grid polygons */}
       {gridPcts.map((pct) => (
-        <polygon key={pct} points={gridPolygon(pct, n)} fill="none" stroke="#e2e8f0" strokeWidth="1" />
+        <polygon
+          key={pct}
+          points={gridPolygon(pct, n)}
+          fill="none"
+          stroke="#e2e8f0"
+          strokeWidth="1"
+        />
       ))}
       {/* Axis lines */}
       {axes.map((_, i) => {
         const [x, y] = radarPoint(i, n, 100)
         return (
-          <line key={i} x1={RADAR_CX} y1={RADAR_CY} x2={x.toFixed(2)} y2={y.toFixed(2)} stroke="#e2e8f0" strokeWidth="1" />
+          <line
+            key={i}
+            x1={RADAR_CX}
+            y1={RADAR_CY}
+            x2={x.toFixed(2)}
+            y2={y.toFixed(2)}
+            stroke="#e2e8f0"
+            strokeWidth="1"
+          />
         )
       })}
       {/* Target role series (dashed gray) */}
@@ -290,7 +300,15 @@ function RadarChart({ axes }: { readonly axes: readonly RadarAxis[] }): ReactEle
       {gridPcts.map((pct) => {
         const [, y] = radarPoint(0, n, pct)
         return (
-          <text key={pct} x={RADAR_CX + 3} y={y + 1} fontSize="7" fill="#94a3b8" textAnchor="start" dominantBaseline="middle">
+          <text
+            key={pct}
+            x={RADAR_CX + 3}
+            y={y + 1}
+            fontSize="7"
+            fill="#94a3b8"
+            textAnchor="start"
+            dominantBaseline="middle"
+          >
             {pct}
           </text>
         )
@@ -299,7 +317,16 @@ function RadarChart({ axes }: { readonly axes: readonly RadarAxis[] }): ReactEle
       {axes.map((a, i) => {
         const [lx, ly] = radarLabelPoint(i, n)
         return (
-          <text key={i} x={lx.toFixed(2)} y={ly.toFixed(2)} fontSize="10" fill="#475569" fontWeight="500" textAnchor="middle" dominantBaseline="middle">
+          <text
+            key={i}
+            x={lx.toFixed(2)}
+            y={ly.toFixed(2)}
+            fontSize="10"
+            fill="#475569"
+            fontWeight="500"
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
             {a.axis}
           </text>
         )
@@ -328,7 +355,7 @@ export default function SkillMapPage(): ReactElement {
       if (cancelled) return
       setHeatmapState({
         kind: 'ready',
-        data: heatmap ?? MOCK_HEATMAP,
+        data: normalizeSkillHeatmapData(heatmap, MOCK_HEATMAP),
         alerts: alerts ?? MOCK_ALERTS,
       })
     })()
@@ -418,7 +445,10 @@ export default function SkillMapPage(): ReactElement {
           </p>
           <div className="flex flex-wrap gap-2">
             {heatmapState.alerts.map((a) => (
-              <div key={a.id} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs">
+              <div
+                key={a.id}
+                className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs"
+              >
                 <span className="font-medium text-rose-700">{a.team}</span>
                 <span className="mx-1 text-rose-400">/</span>
                 <span className="text-slate-700">{a.category}</span>
@@ -476,7 +506,9 @@ function HeatmapPanel({ state, onCellClick }: HeatmapPanelProps): ReactElement {
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
         <div>
           <p className="text-sm font-semibold text-slate-800">部署 × スキルカテゴリ ヒートマップ</p>
-          <p className="mt-0.5 text-xs text-slate-500">チーム行をクリックすると右ペインにレーダーを表示</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            チーム行をクリックすると右ペインにレーダーを表示
+          </p>
         </div>
         <p className="text-xs font-medium text-slate-400">充足率 %</p>
       </div>
@@ -485,9 +517,14 @@ function HeatmapPanel({ state, onCellClick }: HeatmapPanelProps): ReactElement {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
-              <th className="py-3 pl-5 pr-3 text-left text-xs font-semibold text-slate-500">チーム</th>
+              <th className="py-3 pr-3 pl-5 text-left text-xs font-semibold text-slate-500">
+                チーム
+              </th>
               {categories.map((cat) => (
-                <th key={cat} className="px-2 py-3 text-center text-xs font-semibold text-slate-500">
+                <th
+                  key={cat}
+                  className="px-2 py-3 text-center text-xs font-semibold text-slate-500"
+                >
                   {cat}
                 </th>
               ))}
@@ -500,7 +537,7 @@ function HeatmapPanel({ state, onCellClick }: HeatmapPanelProps): ReactElement {
                 className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50"
                 onClick={() => onCellClick(team)}
               >
-                <td className="whitespace-nowrap py-3 pl-5 pr-3 text-xs font-medium text-slate-700">
+                <td className="py-3 pr-3 pl-5 text-xs font-medium whitespace-nowrap text-slate-700">
                   {team}
                 </td>
                 {categories.map((cat) => {
@@ -529,8 +566,8 @@ function HeatmapPanel({ state, onCellClick }: HeatmapPanelProps): ReactElement {
           [
             ['bg-emerald-600', '90以上'],
             ['bg-emerald-200', '75–89'],
-            ['bg-rose-100',    '50–74'],
-            ['bg-rose-300',    '50未満'],
+            ['bg-rose-100', '50–74'],
+            ['bg-rose-300', '50未満'],
           ] as const
         ).map(([cls, label]) => (
           <span key={label} className="flex items-center gap-1 text-xs text-slate-600">
@@ -568,7 +605,10 @@ function RadarPanel({ state, userId, onUserIdChange, onSubmit }: RadarPanelProps
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex items-end gap-2 border-b border-slate-100 px-5 py-3">
+      <form
+        onSubmit={onSubmit}
+        className="flex items-end gap-2 border-b border-slate-100 px-5 py-3"
+      >
         <div className="flex-1">
           <label htmlFor="radar-uid" className="mb-1 block text-xs font-medium text-slate-600">
             社員 ID
@@ -647,10 +687,13 @@ function RadarBody({ state }: { readonly state: RadarState }): ReactElement {
           <div key={a.axis} className="flex items-center gap-2 text-xs">
             <span className="w-16 shrink-0 text-right text-slate-500">{a.axis}</span>
             <div className="flex-1 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${a.current}%` }} />
+              <div
+                className="h-1.5 rounded-full bg-indigo-500"
+                style={{ width: `${a.current}%` }}
+              />
             </div>
-            <span className="w-8 shrink-0 tabular-nums text-slate-700">{a.current}</span>
-            <span className="w-8 shrink-0 tabular-nums text-slate-400">/{a.targetRole}</span>
+            <span className="w-8 shrink-0 text-slate-700 tabular-nums">{a.current}</span>
+            <span className="w-8 shrink-0 text-slate-400 tabular-nums">/{a.targetRole}</span>
           </div>
         ))}
       </div>
